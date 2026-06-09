@@ -161,7 +161,7 @@ test("initial refresh shows empty identity state when identity is missing", asyn
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].type, "mc:get-identity");
-  assert.equal(elements["#identity-status"].textContent, "Ключ шифрования не загружен.");
+  assert.equal(elements["#create-identity"].textContent, "Создать ключ");
   assert.equal(elements["#public-key-output"].value, "");
   assert.equal(elements["#private-key-output"].value, "");
   assert.equal(elements["#fingerprint-short-output"].value, "");
@@ -198,10 +198,7 @@ test("create identity triggers init and refreshes displayed identity", async () 
   );
   assert.equal(elements["#message"].textContent, "Ключ шифрования создан.");
   assert.equal(elements["#message"].style.color, "#0d5a20");
-  assert.equal(
-    elements["#identity-status"].textContent,
-    "Загружен ключ шифрования: ABCD EF01 2345 (ABCD EF01 2345 6789 ABCD EF01 2345 6789 ABCD EF01)"
-  );
+  assert.equal(elements["#create-identity"].textContent, "Заменить ключ");
   assert.equal(elements["#public-key-output"].value, "PUBLIC");
   assert.equal(elements["#private-key-output"].value, "PRIVATE");
   assert.equal(elements["#fingerprint-short-output"].value, "ABCD EF01 2345");

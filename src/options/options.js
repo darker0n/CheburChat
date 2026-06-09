@@ -58,15 +58,15 @@ async function refreshIdentity() {
   }
   const identity = response.identity;
   currentIdentity = identity;
-  const status = document.querySelector("#identity-status");
   const shortFingerprint = document.querySelector("#fingerprint-short-output");
   const fullFingerprint = document.querySelector("#fingerprint-full-output");
   const pub = document.querySelector("#public-key-output");
   const priv = document.querySelector("#private-key-output");
+  const createButton = document.querySelector("#create-identity");
 
   if (!identity) {
     setOnboardingVisible(true);
-    status.textContent = "Ключ шифрования не загружен.";
+    if (createButton) createButton.textContent = "Создать ключ";
     shortFingerprint.value = "";
     fullFingerprint.value = "";
     pub.value = "";
@@ -75,9 +75,9 @@ async function refreshIdentity() {
   }
 
   setOnboardingVisible(false);
+  if (createButton) createButton.textContent = "Заменить ключ";
   const shortFingerprintText = formatShortFingerprint(identity.fingerprintShort || identity.fingerprintFull);
   const fullFingerprintText = formatFingerprint(identity.fingerprintFull);
-  status.textContent = `Загружен ключ шифрования: ${shortFingerprintText} (${fullFingerprintText})`;
   shortFingerprint.value = shortFingerprintText;
   fullFingerprint.value = fullFingerprintText;
   pub.value = identity.publicKeyArmored;
