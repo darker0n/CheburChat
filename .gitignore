@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.*
+
+# local tooling & internal docs — not published
+.claude/
+.conductor/
+.superset/
+CLAUDE.md
+AGENTS.md
+openspec/
+docs/v0.1-beta/

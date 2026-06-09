@@ -1,0 +1,120 @@
+<div align="center">
+
+# Чебурчат
+
+**Сквозное шифрование личных сообщений во ВКонтакте.**
+Расширение Chrome (Manifest V3), которое шифрует переписку прямо в интерфейсе ВК — сервер ВКонтакте и СОРМ видят только шифротекст, а ключи не покидают устройство.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-3E9B2F.svg)](LICENSE)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-1F6B18.svg)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
+[![Crypto: OpenPGP.js v6](https://img.shields.io/badge/crypto-OpenPGP.js%20v6-1F6B18.svg)](https://github.com/openpgpjs/openpgpjs)
+[![Build: none](https://img.shields.io/badge/build-none%20(vanilla%20JS)-786452.svg)](#разработка)
+
+[Сайт](https://cheburchat.com) · [Установка](https://cheburchat.com/install) · [Руководство пользователя](docs/USER_GUIDE.md) · [Технический документ](docs/TECHNICAL.md)
+
+</div>
+
+## Обзор
+
+Чебурчат добавляет E2E-шифрование поверх обычного веб-ВКонтакте, не меняя привычный интерфейс. Когда расширение установлено у обоих собеседников и они обменялись ключами, исходящие сообщения автоматически шифруются перед отправкой и расшифровываются после приёма. Если у получателя расширения нет — переписка идёт в открытом виде, как обычно.
+
+Криптография не самописная: используется [**OpenPGP.js**](https://github.com/openpgpjs/openpgpjs) v6 — зрелая реализация от [ProtonMail](https://proton.me/) с двумя независимыми [аудитами Cure53](https://github.com/openpgpjs/openpgpjs/blob/main/README.md#security-audits). Профиль ограниченный: [Curve25519](https://en.wikipedia.org/wiki/Curve25519) (ECDH) + Ed25519 (подпись), без сжатия, обязательная подпись каждого сообщения.
+
+## Архитектура
+
+```mermaid
+flowchart LR
+  subgraph Page["вкладка vk.com"]
+    CS["content script<br/>vk.js · vk_pure.js<br/><i>DOM-интеграция, UI-маркеры</i>"]
+  end
+  subgraph Ext["Расширение · Manifest V3"]
+    SW["service worker<br/>worker.js<br/><b>крипта · trust · хранилище</b>"]
+    POP["popup<br/>ключи · контакты · бэкап"]
+    ST[("chrome.storage.local")]
+  end
+  CS <-->|chrome.runtime.sendMessage| SW
+  POP <-->|chrome.runtime.sendMessage| SW
+  SW <--> ST
+```
+
+**Единый писатель.** Вся криптография, записи в `chrome.storage.local` и логика доверия живут только в background-воркере. Content script никогда не пишет в хранилище напрямую — каждая операция идёт сообщением воркеру. Это защита от гонок при нескольких открытых вкладках; воркер делает per-record read-modify-write без перезаписи всей базы. MV3-воркер усыпляется и перезапускается, поэтому все операции идемпотентны и не зависят от долгоживущего in-memory состояния.
+
+## Протокол `CHEBURCHAT:v1`
+
+Транспорт — обычный текст сообщения ВК в детектируемой обёртке. Подробности и канонические форматы — в [TECHNICAL.md](docs/TECHNICAL.md) и [MVP_SPEC.md](docs/MVP_SPEC.md).
+
+```mermaid
+sequenceDiagram
+  participant A as Алиса · Чебурчат
+  participant VK as Серверы ВК
+  participant B as Боб · Чебурчат
+  A->>VK: CHEBURCHAT:v1:key: (подписанный публичный ключ)
+  VK->>B: то же сообщение
+  B->>VK: CHEBURCHAT:v1:key: (свой ключ)
+  VK->>A: то же
+  Note over A,B: сверка отпечатков → контакт trusted
+  A->>VK: CHEBURCHAT:v1:msg: (sign+encrypt к Бобу и себе)
+  VK-->>B: только шифротекст
+  Note over VK: сервер ВК и СОРМ видят лишь шифротекст
+```
+
+- **Ключевой анонс** — две строки: человекочитаемое приглашение + `CHEBURCHAT:v1:key:<base64url-json>`. Полезная нагрузка подписана detached-подписью OpenPGP.
+- **Сообщение** — `CHEBURCHAT:v1:msg:<base64url>`: sign+encrypt одной операцией к ключу контакта **и** собственному (encrypt-to-self — чтобы перечитывать свою историю).
+- Версионируется (`v1`); неизвестные версии помечаются как неподдерживаемые, а не парсятся вслепую.
+
+## Состояния доверия
+
+`missing` → `new` → `trusted`; `changed` при конфликте ключа; `rejected` при явном отклонении. Автошифрование — только для `trusted`. `decrypt_failed` — состояние уровня сообщения и на доверие контакта не влияет. Идентичность платформенно-нейтральна — контакты ключуются парой `(platform, accountId)`, что оставляет задел под другие платформы (Max).
+
+## Структура проекта
+
+```
+src/
+├── background/   worker.js — роутер сообщений; crypto.js — OpenPGP; store.js — chrome.storage
+├── content/      vk.js — DOM-интеграция ВК; vk_pure.js — чистые хелперы (тестируемы отдельно)
+├── common/       protocol.js, constants.js, canonical.js, fingerprint.js, base64url.js, helpers.js
+├── popup/        popup.{html,css,js} — основной UI (onboarding, контакты, бэкап ключа)
+└── options/      options.{html,js} — расширенные настройки
+tests/            *.test.js — Node.js test runner
+docs/             MVP_SPEC.md (источник правды), TECHNICAL.md, USER_GUIDE.md
+site/             исходники cheburchat.com (выносится в отдельный репозиторий)
+```
+
+## Модель угроз
+
+| | |
+|---|---|
+| ✅ Защищает | содержимое от **сервера ВК, сети/провайдера и СОРМ** — по проводу только шифротекст |
+| ❌ Не защищает | вредоносное ПО / скомпрометированное устройство; метаданные (кто, кому, когда — это видит ВК); скриншоты и буфер обмена |
+
+Расшифрованный текст рендерится inline в DOM ВК, ввод — в нативном поле. Активный клиентский JS самого ВК технически имеет доступ к DOM/вводу — это **вне** модели защиты беты (граница защиты — сервер/сеть, не само устройство). Приватный ключ в бете хранится локально без отдельного пароля — известный security debt, закрытие post-beta. Полная модель — в [TECHNICAL.md](docs/TECHNICAL.md).
+
+## Установка
+
+Бета пока не в Chrome Web Store — ставится вручную из исходников (сборка не нужна). Пошагово со скриншотами: **[cheburchat.com/install](https://cheburchat.com/install)**.
+
+```
+1. Скачать ZIP последней версии из Releases и распаковать
+2. chrome://extensions → включить «Режим разработчика»
+3. «Загрузить распакованное расширение» → выбрать папку
+4. Создать ключ в попапе и сохранить резервную копию
+```
+
+Пользовательская инструкция — [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+
+## Разработка
+
+Vanilla JS, **без сборки и бандлера** — расширение грузится прямо из исходников через `manifest.json`. Требуется Chrome 127+.
+
+```bash
+npm install      # только dev-зависимости (eslint, тест-раннер не нужен — встроен в node)
+npm test         # тесты: крипта, протокол, trust-переходы, парсинг, лимиты
+npm run check    # проверка наличия обязательных файлов
+npx eslint .     # линтинг
+```
+
+Зависимость рантайма одна — [`openpgp`](https://www.npmjs.com/package/openpgp). Источник правды по протоколу и поведению — [docs/MVP_SPEC.md](docs/MVP_SPEC.md).
+
+## Лицензия
+
+[MIT](LICENSE).

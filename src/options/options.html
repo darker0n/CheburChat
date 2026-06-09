@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Настройки Чебурчат</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Настройки Чебурчат</h1>
+      <section id="onboarding-section" class="onboarding">
+        <h2>Начало работы</h2>
+        <p class="note">Выберите один вариант для инициализации ключа шифрования Чебурчат.</p>
+        <div class="actions">
+          <button id="onboarding-create" type="button">Создать ключ шифрования</button>
+          <button id="onboarding-import" type="button">Импортировать существующий ключ шифрования</button>
+        </div>
+      </section>
+      <section>
+        <h2>Ключ шифрования</h2>
+        <p id="identity-status">Ключ шифрования не загружен.</p>
+        <label for="fingerprint-short-output">Короткий отпечаток ключа (fingerprint)</label>
+        <div class="inline-actions">
+          <input id="fingerprint-short-output" class="mono" readonly />
+          <button id="copy-fingerprint-short" type="button">Копировать</button>
+        </div>
+        <label for="fingerprint-full-output">Полный отпечаток ключа (fingerprint)</label>
+        <div class="inline-actions">
+          <input id="fingerprint-full-output" class="mono" readonly />
+          <button id="copy-fingerprint-full" type="button">Копировать</button>
+        </div>
+        <div class="actions">
+          <button id="create-identity">Создать ключ шифрования</button>
+          <button id="refresh-identity">Обновить</button>
+        </div>
+      </section>
+      <section>
+        <h2>Импорт ключа шифрования</h2>
+        <textarea id="private-key-input" placeholder="Вставьте приватный ключ в текстовом формате"></textarea>
+        <button id="import-identity">Импортировать</button>
+      </section>
+      <section>
+        <h2>Публичный ключ</h2>
+        <button id="copy-public-key" type="button">Копировать публичный ключ</button>
+        <textarea id="public-key-output" readonly></textarea>
+      </section>
+      <section>
+        <h2>Экспорт приватного ключа</h2>
+        <button id="copy-private-key" type="button">Копировать приватный ключ</button>
+        <textarea id="private-key-output" readonly></textarea>
+      </section>
+      <section>
+        <h2>Хранение ключей</h2>
+        <p class="note">
+          Ваш приватный ключ хранится в этом профиле браузера в локальном хранилище расширения.
+          В текущей версии Чебурчат нет отдельной парольной защиты для этого сохраненного ключа.
+        </p>
+      </section>
+      <section>
+        <h2>Контакты</h2>
+        <p class="note">
+          Сервисный список сохраненных ключей контактов для тестирования flow. После удаления контакта потребуется
+          повторный обмен ключами.
+        </p>
+        <div id="contacts-list" class="contacts-list"></div>
+        <button id="refresh-contacts" type="button">Обновить список</button>
+      </section>
+      <section>
+        <h2>Отладочное логирование</h2>
+        <label class="checkbox-row">
+          <input id="debug-mode-toggle" type="checkbox" />
+          <span>Включить отладочные логи в фоне расширения</span>
+        </label>
+        <button id="save-debug-mode" type="button">Сохранить режим отладки</button>
+      </section>
+      <section>
+        <h2>Порог предупреждения длины</h2>
+        <label>
+          Порог в байтах (UTF-8) для предупреждения о длине зашифрованного сообщения
+          <input id="warning-threshold-input" type="number" min="1" max="4096" step="1" placeholder="1800" />
+        </label>
+        <button id="save-warning-threshold" type="button">Сохранить порог</button>
+      </section>
+      <section>
+        <h2>Предпросмотр объявления ключа</h2>
+        <label>
+          ID аккаунта VK
+          <input id="announcement-account-id" placeholder="123456" />
+        </label>
+        <label>
+          Отображаемое имя
+          <input id="announcement-display-name" placeholder="Необязательное имя" />
+        </label>
+        <button id="build-announcement">Сформировать объявление ключа</button>
+        <textarea id="announcement-output" readonly></textarea>
+      </section>
+      <p id="message"></p>
+    </main>
+    <script type="module" src="./options.js"></script>
+  </body>
+</html>

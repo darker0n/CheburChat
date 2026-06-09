@@ -1,0 +1,137 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(120deg, #f3f8ff, #eef6f2);
+  color: #17212b;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+section {
+  background: #ffffff;
+  border: 1px solid #d8e2ee;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+h1,
+h2 {
+  margin-top: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.inline-actions input {
+  margin: 0;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.contacts-list {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.contact-row:last-child {
+  border-bottom: none;
+}
+
+.contact-row span {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.contact-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.contact-remove-button {
+  flex-shrink: 0;
+  border-color: #b94d4d;
+  background: #d95c5c;
+}
+
+textarea {
+  width: 100%;
+  min-height: 100px;
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  border: 1px solid #c5d1df;
+  border-radius: 8px;
+}
+
+button {
+  border: 1px solid #3e6ad6;
+  background: #4f7df5;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#message {
+  min-height: 20px;
+  color: #0d5a20;
+}
+
+.note {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.onboarding {
+  border-color: #bfd7c8;
+  background: linear-gradient(180deg, #f4fbf6 0%, #eef8f1 100%);
+}

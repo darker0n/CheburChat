@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Чебурчат",
+  "version": "0.1.0",
+  "description": "Чебурчат: шифрование личных сообщений ВКонтакте",
+  "minimum_chrome_version": "127",
+  "permissions": [
+    "storage"
+  ],
+  "icons": {
+    "16": "src/assets/icons/icon-16.png",
+    "32": "src/assets/icons/icon-32.png",
+    "48": "src/assets/icons/icon-48.png",
+    "128": "src/assets/icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Чебурчат",
+    "default_icon": {
+      "16": "src/assets/icons/icon-16.png",
+      "32": "src/assets/icons/icon-32.png"
+    }
+  },
+  "host_permissions": [
+    "https://vk.com/*",
+    "https://vk.ru/*",
+    "https://*.vk.com/*",
+    "https://*.vk.ru/*"
+  ],
+  "background": {
+    "service_worker": "src/background/worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://vk.com/*",
+        "https://vk.ru/*",
+        "https://*.vk.com/*",
+        "https://*.vk.ru/*"
+      ],
+      "js": [
+        "src/content/vk_pure.js",
+        "src/content/vk.js"
+      ],
+      "css": [
+        "src/content/vk.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "cheburchat-extension",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "CheburChat MVP Chrome extension for VK Web encrypted chats",
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node --test",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "openpgp": "^6.2.2"
+  },
+  "lint-staged": {
+    "*.{js,mjs}": "eslint"
+  },
+  "devDependencies": {
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  }
+}

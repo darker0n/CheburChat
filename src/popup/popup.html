@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Чебурчат</title>
+  <link rel="stylesheet" href="./popup.css" />
+</head>
+<body>
+  <main id="app">
+
+    <!-- ============ LOADING ============ -->
+    <section class="view active" id="view-loading">
+      <div class="loading-wrap">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Загрузка…</p>
+      </div>
+    </section>
+
+    <!-- ============ LOAD ERROR ============ -->
+    <section class="view" id="view-load-error">
+      <div class="state-pad">
+        <div class="state-icon err">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        </div>
+        <div class="state-title">Не удалось загрузить</div>
+        <p class="state-msg" id="load-error-msg">Не удалось загрузить данные расширения.</p>
+        <div class="state-actions">
+          <button class="btn btn-primary" id="retry-btn" type="button">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            Повторить
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ONBOARDING ============ -->
+    <section class="view" id="view-onboarding">
+      <div class="ledger-tab">
+        <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+        E2EE
+      </div>
+      <div class="onb-inner stagger">
+        <img class="onb-logo" src="../assets/branding/logo-transparent.png" alt="Чебурчат" />
+        <div class="onb-eyebrow">Приватность по умолчанию</div>
+        <h1 class="onb-lead">Сквозное шифрование <span class="hl">личных&nbsp;сообщений</span> ВКонтакте.</h1>
+        <p class="onb-sub">Переписку видите только вы и собеседник. Ключи не покидают устройство.</p>
+        <div class="onb-actions">
+          <button class="btn btn-primary" id="onboarding-create" type="button">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+            Создать ключ
+          </button>
+          <button class="btn btn-secondary" id="onboarding-import" type="button">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+            Импортировать ключ
+          </button>
+        </div>
+        <div class="onb-foot">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          curve25519 · подпись обязательна
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BACKUP ============ -->
+    <section class="view" id="view-backup">
+      <div class="simple-head">
+        <h2>Сохраните приватный ключ</h2>
+        <p class="sub">Это единственный способ восстановить доступ к зашифрованной переписке.</p>
+      </div>
+      <div class="view-body">
+        <div class="warn-box">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <span>Это ваш приватный ключ шифрования. Если вы потеряете его, вы потеряете доступ к зашифрованной переписке, которая связана с этим ключом. Сохраните его в надёжном месте. Никому не передавайте его и не публикуйте нигде.</span>
+        </div>
+        <textarea class="key-box" id="backup-key" readonly></textarea>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-sm" id="backup-copy" type="button">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            Скопировать
+          </button>
+          <button class="btn btn-secondary btn-sm" id="backup-download" type="button">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+            Скачать
+          </button>
+        </div>
+        <button class="btn btn-primary" id="backup-ack" type="button">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          Я сохранил ключ
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ MAIN ============ -->
+    <section class="view" id="view-main">
+      <div class="main-head">
+        <div class="brandline">
+          <img class="brandmark" src="../assets/icons/icon-128.png" alt="Чебурчат" width="30" height="30" />
+          <div class="brandname">Чебур<span>чат</span></div>
+        </div>
+        <div class="fp-chip">
+          <span class="fp-label">Ваш отпечаток</span>
+          <span class="fp-value" id="fp-value">—</span>
+          <button class="copy-btn" id="fp-copy" type="button" aria-label="Скопировать отпечаток">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="list-label">
+        <span class="t">Контакты</span>
+        <span class="c" id="contacts-count">0</span>
+      </div>
+      <div class="contacts" id="contacts-list"></div>
+      <div class="empty-state" id="contacts-empty" hidden>Пока нет сохранённых контактов.</div>
+      <div class="main-foot">
+        <button class="foot-btn" id="open-settings" type="button">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+          Настройки
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ CONTACT DETAIL ============ -->
+    <section class="view" id="view-contact">
+      <div class="detail-head">
+        <button class="icon-btn" id="contact-back" type="button" aria-label="Назад">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div class="detail-id">
+          <div class="detail-name" id="contact-name">—</div>
+          <div class="detail-acct" id="contact-acct">—</div>
+        </div>
+        <span class="trust-badge" id="contact-trust">—</span>
+      </div>
+      <div class="view-body">
+        <div class="fp-block">
+          <div class="fp-block-label" id="contact-fp-label">Отпечаток контакта для проверки</div>
+          <div class="fp-block-value" id="contact-fp">—</div>
+        </div>
+        <div class="fp-block" id="contact-prev-block" hidden>
+          <div class="fp-block-label">Старый отпечаток</div>
+          <div class="fp-block-value" id="contact-prev-fp">—</div>
+        </div>
+        <div class="detail-actions" id="contact-actions"></div>
+      </div>
+    </section>
+
+    <!-- ============ IMPORT ============ -->
+    <section class="view" id="view-import">
+      <div class="detail-head">
+        <button class="icon-btn" id="import-back" type="button" aria-label="Назад">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div class="detail-id">
+          <div class="detail-name">Импорт ключа</div>
+        </div>
+      </div>
+      <div class="view-body">
+        <p class="hint">Вставьте приватный ключ (armored) или выберите файл .asc, .pgp или .txt.</p>
+        <textarea class="key-box" id="import-text" placeholder="-----BEGIN PGP PRIVATE KEY BLOCK-----"></textarea>
+        <label class="file-btn">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          <span id="import-file-label">Выбрать файл…</span>
+          <input type="file" id="import-file" accept=".asc,.pgp,.txt" hidden />
+        </label>
+        <button class="btn btn-primary" id="import-submit" type="button">
+          <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+          Импортировать
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ FEEDBACK ============ -->
+    <section class="view" id="view-feedback">
+      <div class="state-pad">
+        <div class="fb-mark" id="fb-mark"></div>
+        <div class="state-title" id="fb-title">Готово</div>
+        <p class="state-msg" id="fb-msg"></p>
+        <div class="state-actions">
+          <button class="btn btn-secondary" id="fb-back" type="button">
+            <svg data-lucide viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            Назад
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  <script type="module" src="./popup.js"></script>
+</body>
+</html>
