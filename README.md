@@ -20,6 +20,29 @@
 
 Криптография не самописная: используется [**OpenPGP.js**](https://github.com/openpgpjs/openpgpjs) v6 — зрелая реализация от [ProtonMail](https://proton.me/) с двумя независимыми [аудитами Cure53](https://github.com/openpgpjs/openpgpjs/blob/main/README.md#security-audits). Профиль ограниченный: [Curve25519](https://en.wikipedia.org/wiki/Curve25519) (ECDH) + Ed25519 (подпись), без сжатия, обязательная подпись каждого сообщения.
 
+## Как это выглядит
+
+Сообщение шифруется и расшифровывается прямо в окне чата ВКонтакте — привычный интерфейс не меняется:
+
+<p align="center">
+  <img src="docs/screenshots/chat-encrypted.png" alt="Зашифрованное сообщение в чате ВКонтакте" width="760">
+</p>
+
+Создание ключа, контакты и проверка отпечатков — в попапе расширения:
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/onboarding.png" alt="Создание ключа" width="100%"></td>
+    <td width="33%"><img src="docs/screenshots/contacts.png" alt="Контакты и состояния доверия" width="100%"></td>
+    <td width="33%"><img src="docs/screenshots/contact-trusted.png" alt="Отпечаток ключа контакта" width="100%"></td>
+  </tr>
+  <tr align="center">
+    <td><sub>Создание ключа — приватность по умолчанию</sub></td>
+    <td><sub>Контакты и состояния доверия</sub></td>
+    <td><sub>Сверка отпечатка ключа</sub></td>
+  </tr>
+</table>
+
 ## Что такое «Чебурчат»?
 
 Название — отсылка к «[Чебурнету](https://neolurk.org/wiki/Чебурнет)»: так иронично называют изолированный, отгороженный от мира рунет ([хроника интернет-цензуры в России — как к этому шло](https://habr.com/ru/articles/1014038/)).
