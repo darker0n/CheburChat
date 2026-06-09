@@ -1,137 +1,136 @@
+/* Настройки Чебурчат — Privacy Ledger (консистентно с popup). */
 :root {
   color-scheme: light;
+  --paper:        #F4EEE1;
+  --paper-2:      #FBF7EE;
+  --paper-3:      #EFE7D6;
+  --paper-edge:   #E7DEC9;
+  --ink:          #2E2018;
+  --ink-soft:     #6F5E50;
+  --ink-muted:    #786452;
+  --green:        #3E9B2F;
+  --green-text:   #26661D;
+  --green-btn:    #1F6B18;
+  --green-btn-hi: #247A1B;
+  --green-btn-lo: #185812;
+  --green-wash:   #E8F1DD;
+  --red:          #A8352C;
+  --red-wash:     #F6E0DC;
+  --radius:       16px;
+  --radius-sm:    11px;
+  --shadow-soft:  0 1px 2px rgba(46,32,24,.06), 0 8px 24px rgba(46,32,24,.08);
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(120deg, #f3f8ff, #eef6f2);
-  color: #17212b;
-}
-
-.container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 24px;
-}
-
-section {
-  background: #ffffff;
-  border: 1px solid #d8e2ee;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-h1,
-h2 {
-  margin-top: 0;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
-.inline-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 6px;
-  margin-bottom: 10px;
-}
-
-.inline-actions input {
-  margin: 0;
-}
-
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.contacts-list {
-  margin-top: 10px;
-  margin-bottom: 10px;
-}
-
-.contact-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid #e8edf3;
-}
-
-.contact-row:last-child {
-  border-bottom: none;
-}
-
-.contact-row span {
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.contact-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.contact-remove-button {
-  flex-shrink: 0;
-  border-color: #b94d4d;
-  background: #d95c5c;
-}
-
-textarea {
-  width: 100%;
-  min-height: 100px;
-  margin-top: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-input {
-  width: 100%;
-  padding: 8px;
-  margin-top: 6px;
-  margin-bottom: 6px;
-  border: 1px solid #c5d1df;
-  border-radius: 8px;
-}
-
-button {
-  border: 1px solid #3e6ad6;
-  background: #4f7df5;
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-#message {
-  min-height: 20px;
-  color: #0d5a20;
-}
-
-.note {
-  margin: 0;
+  font-family: var(--sans);
+  color: var(--ink);
+  background-color: var(--paper);
+  background-image: radial-gradient(rgba(46,32,24,.022) 1px, transparent 1px);
+  background-size: 4px 4px;
+  -webkit-font-smoothing: antialiased;
   line-height: 1.5;
 }
 
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+/* topbar */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--paper-edge);
+}
+.topbar__inner { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 12px; padding: 14px 24px; }
+.brandmark { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(46,32,24,.18)); }
+.brandtitle { font-size: 18px; font-weight: 750; letter-spacing: -0.02em; }
+.brandtitle span { color: var(--green-text); }
+.brandtitle .muted { color: var(--ink-muted); font-weight: 600; }
+
+/* layout */
+.container { max-width: 760px; margin: 0 auto; padding: 28px 24px 64px; }
+
+.card {
+  background: var(--paper-2);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-soft);
+}
+.card--accent { border-color: rgba(38,102,29,.28); background: linear-gradient(180deg, var(--green-wash), var(--paper-2)); }
+
+.card h2 { margin: 0 0 12px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+
+.note { margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
+
+label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-muted); margin-top: 14px; margin-bottom: 2px; }
+
+/* controls */
+input, textarea {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--paper-edge);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-top: 6px;
+}
+input:focus, textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px var(--green-wash); }
+textarea { min-height: 110px; resize: vertical; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+.mono { font-family: var(--mono); letter-spacing: .04em; }
+input[readonly], textarea[readonly] { background: var(--paper-3); color: var(--ink-soft); }
+
+/* buttons */
+.btn, button {
+  font-family: var(--sans);
+  font-size: 14px; font-weight: 650; letter-spacing: -0.01em;
+  border-radius: 11px; padding: 10px 16px; cursor: pointer; border: none;
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease, color .2s ease;
+}
+.btn-primary, #create-identity, #import-identity, #onboarding-create {
+  background: linear-gradient(180deg, var(--green-btn-hi), var(--green-btn) 60%, var(--green-btn-lo));
+  color: #fff; box-shadow: 0 2px 0 var(--green-btn-lo), 0 8px 18px rgba(31,107,24,.30);
+}
+.btn-primary:hover, #create-identity:hover, #import-identity:hover, #onboarding-create:hover { transform: translateY(-1px); }
+.btn-primary:active, #create-identity:active, #import-identity:active, #onboarding-create:active { transform: translateY(1px); }
+
+.btn-ghost, .btn-secondary,
+#refresh-identity, #copy-fingerprint-short, #copy-fingerprint-full, #copy-public-key,
+#copy-private-key, #refresh-contacts, #save-debug-mode, #save-warning-threshold, #onboarding-import {
+  background: var(--paper); color: var(--ink); border: 1.5px solid var(--paper-edge);
+}
+.btn-ghost:hover, .btn-secondary:hover,
+#refresh-identity:hover, #copy-fingerprint-short:hover, #copy-fingerprint-full:hover, #copy-public-key:hover,
+#copy-private-key:hover, #refresh-contacts:hover, #save-debug-mode:hover, #save-warning-threshold:hover, #onboarding-import:hover {
+  border-color: var(--green); color: var(--green-text);
 }
 
-.checkbox-row input[type="checkbox"] {
-  width: auto;
-  margin: 0;
-}
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.inline-actions { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.inline-actions input { margin-top: 0; }
+.inline-actions button { flex: none; white-space: nowrap; }
 
-.onboarding {
-  border-color: #bfd7c8;
-  background: linear-gradient(180deg, #f4fbf6 0%, #eef8f1 100%);
+/* checkbox */
+.checkbox-row { display: flex; align-items: center; gap: 10px; }
+.checkbox-row input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--green-btn); }
+.checkbox-row span { font-size: 14px; color: var(--ink-soft); }
+
+/* contacts */
+.contacts-list { margin: 14px 0; }
+.contact-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--paper-edge);
 }
+.contact-row:last-child { border-bottom: none; }
+.contact-row span { font-size: 14px; line-height: 1.4; }
+.contact-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.contact-remove-button { background: var(--red-wash); color: var(--red); border: 1.5px solid rgba(168,53,44,.3); }
+.contact-remove-button:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* message */
+#message { min-height: 20px; margin-top: 4px; font-size: 14px; font-weight: 600; color: var(--green-text); }

@@ -54,13 +54,9 @@ function createElements({ includeDebugControls = false, includeContactsControls 
     "#public-key-output": new FakeElement(),
     "#private-key-output": new FakeElement(),
     "#private-key-input": new FakeElement(),
-    "#announcement-account-id": new FakeElement(),
-    "#announcement-display-name": new FakeElement(),
-    "#announcement-output": new FakeElement(),
     "#create-identity": new FakeElement(),
     "#refresh-identity": new FakeElement(),
     "#import-identity": new FakeElement(),
-    "#build-announcement": new FakeElement(),
     "#copy-fingerprint-short": new FakeElement(),
     "#copy-fingerprint-full": new FakeElement(),
     "#copy-public-key": new FakeElement(),
@@ -254,53 +250,6 @@ test("import identity validates private key input before sending request", async
   );
   assert.equal(elements["#message"].textContent, "Требуется приватный ключ.");
   assert.equal(elements["#message"].style.color, "#8f1f1f");
-});
-
-test("build announcement validates VK account id", async () => {
-  const { elements, calls } = await bootOptions({
-    responder: (message) => {
-      if (message.type === "mc:get-identity") return { ok: true, identity: null };
-      if (message.type === "mc:create-key-announcement") throw new Error("create announcement should not be called");
-      throw new Error(`Unexpected message: ${message.type}`);
-    }
-  });
-
-  elements["#announcement-account-id"].value = " ";
-  await elements["#build-announcement"].click();
-
-  assert.deepEqual(
-    calls.map((entry) => entry.type),
-    ["mc:get-identity"]
-  );
-  assert.equal(elements["#message"].textContent, "Требуется ID аккаунта VK.");
-  assert.equal(elements["#message"].style.color, "#8f1f1f");
-});
-
-test("build announcement success fills output and shows success message", async () => {
-  const { elements, calls } = await bootOptions({
-    responder: (message) => {
-      if (message.type === "mc:get-identity") return { ok: true, identity: null };
-      if (message.type === "mc:create-key-announcement") {
-        assert.equal(message.payload.platform, "vk");
-        assert.equal(message.payload.accountId, "200");
-        assert.equal(message.payload.displayName, "Alice");
-        return { ok: true, text: "ANNOUNCEMENT_TEXT" };
-      }
-      throw new Error(`Unexpected message: ${message.type}`);
-    }
-  });
-
-  elements["#announcement-account-id"].value = " 200 ";
-  elements["#announcement-display-name"].value = "Alice";
-  await elements["#build-announcement"].click();
-
-  assert.deepEqual(
-    calls.map((entry) => entry.type),
-    ["mc:get-identity", "mc:create-key-announcement"]
-  );
-  assert.equal(elements["#announcement-output"].value, "ANNOUNCEMENT_TEXT");
-  assert.equal(elements["#message"].textContent, "Объявление ключа сформировано.");
-  assert.equal(elements["#message"].style.color, "#0d5a20");
 });
 
 test("debug toggle loads current setting on init when controls exist", async () => {

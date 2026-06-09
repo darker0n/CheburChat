@@ -160,28 +160,6 @@ async function importIdentity() {
   await refreshIdentity();
 }
 
-async function buildAnnouncement() {
-  const accountId = document.querySelector("#announcement-account-id").value.trim();
-  const displayName = document.querySelector("#announcement-display-name").value;
-  if (!accountId) {
-    setMessage("Требуется ID аккаунта VK.", true);
-    return;
-  }
-
-  const response = await sendMessage("mc:create-key-announcement", {
-    platform: "vk",
-    accountId,
-    displayName
-  }, chrome);
-
-  if (!response.ok) {
-    setMessage(response.error || "Не удалось сформировать объявление ключа", true);
-    return;
-  }
-  document.querySelector("#announcement-output").value = response.text;
-  setMessage("Объявление ключа сформировано.");
-}
-
 async function refreshSettingsControls() {
   const toggle = safeQuery("#debug-mode-toggle");
   const thresholdInput = safeQuery("#warning-threshold-input");
@@ -317,7 +295,6 @@ function openImportOnboarding() {
 document.querySelector("#create-identity").addEventListener("click", createIdentity);
 document.querySelector("#refresh-identity").addEventListener("click", refreshIdentity);
 document.querySelector("#import-identity").addEventListener("click", importIdentity);
-document.querySelector("#build-announcement").addEventListener("click", buildAnnouncement);
 document.querySelector("#copy-fingerprint-short").addEventListener("click", async () => {
   await copyTextToClipboard(
     document.querySelector("#fingerprint-short-output").value,
