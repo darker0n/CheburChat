@@ -103,7 +103,7 @@ site/             исходники cheburchat.com (выносится в от�
 
 ## Установка
 
-Бета пока не в Chrome Web Store — ставится вручную из исходников (сборка не нужна). Пошагово со скриншотами: **[cheburchat.com/install](https://cheburchat.com/install)**.
+Бета пока не в Chrome Web Store — ставится вручную из исходников (сборка не нужна). Пошагово: **[cheburchat.com/install](https://cheburchat.com/install)**.
 
 ```
 1. Скачать ZIP последней версии из Releases и распаковать
