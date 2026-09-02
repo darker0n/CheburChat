@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Чебурчат",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Чебурчат: шифрование личных сообщений ВКонтакте",
   "minimum_chrome_version": "127",
   "permissions": [
