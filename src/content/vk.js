@@ -22,7 +22,7 @@
   const KEY_LINE_PATTERN = /^CHEBURCHAT:[^:\s]+:key:[A-Za-z0-9_-]+$/;
   const MSG_LINE_PATTERN = /^CHEBURCHAT:[^:\s]+:msg:[A-Za-z0-9_-]+$/;
   const SUPPORTED_PROTOCOL_VERSION = "v1";
-  const URL_SHARE_KEY_PARAM = "cc_share_key";
+  const MAX_INCOMING_NODES_PER_CYCLE = 10;
 
   let guardSend = false;
   let pendingPlaintextSend = false;
@@ -44,8 +44,8 @@
   let mutationRefreshInFlight = false;
   let mutationRefreshQueued = false;
   let styledSendButton = null;
-  let urlTriggeredKeyShareInFlight = false;
-  let lastHandledUrlTriggeredKeyShareAccountId = "";
+  let keyShareIntentCheckInFlight = false;
+  let checkedKeyShareIntentAccountId = "";
   const testCleanupHooks = globalThis.__CHEBURCHAT_VK_TEST_CLEANUPS__;
   const testApi = globalThis.__CHEBURCHAT_VK_TEST_API__;
   const idleWaiters = [];
@@ -138,30 +138,6 @@
       parseDialogFromDom() ||
       parseDialogFromLinks()
     );
-  }
-
-  function getUrlTriggeredKeyShareAccountId() {
-    try {
-      const url = new URL(String(window.location?.href || ""));
-      const accountId = url.searchParams.get(URL_SHARE_KEY_PARAM) || "";
-      return isDirectDialogAccountId(accountId) ? accountId : "";
-    } catch (_error) {
-      return "";
-    }
-  }
-
-  function clearUrlTriggeredKeyShareAccountId() {
-    try {
-      const url = new URL(String(window.location?.href || ""));
-      if (!url.searchParams.has(URL_SHARE_KEY_PARAM)) return;
-      url.searchParams.delete(URL_SHARE_KEY_PARAM);
-      const nextHref = url.toString();
-      if (window.history?.replaceState) {
-        window.history.replaceState(window.history.state || null, "", nextHref);
-      } else if (window.location && typeof window.location.href === "string") {
-        window.location.href = nextHref;
-      }
-    } catch (_error) {}
   }
 
   function getLocalAccountId() {
@@ -685,23 +661,25 @@
     return true;
   }
 
-  async function maybeHandleUrlTriggeredKeyShare(accountId, composeNode, sendButton) {
+  async function maybeHandlePendingKeyShare(accountId, composeNode, sendButton) {
     if (!composeNode || !sendButton) return;
-    if (urlTriggeredKeyShareInFlight) return;
+    if (keyShareIntentCheckInFlight) return;
+    if (checkedKeyShareIntentAccountId === accountId) return;
 
-    const triggeredAccountId = getUrlTriggeredKeyShareAccountId();
-    if (!triggeredAccountId || triggeredAccountId !== accountId) return;
-    if (lastHandledUrlTriggeredKeyShareAccountId === triggeredAccountId) return;
-
-    urlTriggeredKeyShareInFlight = true;
-    clearUrlTriggeredKeyShareAccountId();
+    keyShareIntentCheckInFlight = true;
+    checkedKeyShareIntentAccountId = accountId;
     try {
-      const prepared = await shareOwnKey({ shareAccountId: accountId });
-      if (prepared?.ok) {
-        lastHandledUrlTriggeredKeyShareAccountId = triggeredAccountId;
+      const response = await sendMessage("mc:consume-key-share-intent", {
+        platform: PLATFORM,
+        accountId
+      });
+      if (!response?.ok) {
+        checkedKeyShareIntentAccountId = "";
+        return;
       }
+      if (response.pending) await shareOwnKey({ shareAccountId: accountId });
     } finally {
-      urlTriggeredKeyShareInFlight = false;
+      keyShareIntentCheckInFlight = false;
     }
   }
 
@@ -746,11 +724,13 @@
       indicatorNode.className = "mc-lock-indicator";
       indicatorNode.title = "Сведения о безопасности Чебурчат";
       indicatorNode.addEventListener("click", (event) => {
+        if (event.isTrusted === false) return;
         if (!isIndicatorActionable(lastChatTrustState)) return;
         event.preventDefault?.();
         void onIndicatorClick();
       });
       indicatorNode.addEventListener("keydown", (event) => {
+        if (event.isTrusted === false) return;
         if (!isIndicatorActionable(lastChatTrustState)) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -1110,6 +1090,7 @@
       }
       button.textContent = action.label;
       button.addEventListener("click", async (event) => {
+        if (event.isTrusted === false) return;
         event.preventDefault();
         event.stopPropagation();
         button.disabled = true;
@@ -1544,11 +1525,12 @@
   async function scanIncoming() {
     const nodes = extractMessageTextElements();
     // Preserve DOM order so self-announcements and later key messages update shared state predictably.
-    for (const node of nodes) {
+    for (const node of nodes.slice(0, MAX_INCOMING_NODES_PER_CYCLE)) {
       try {
         await processIncomingNode(node);
       } catch (_error) {}
     }
+    if (nodes.length > MAX_INCOMING_NODES_PER_CYCLE) scheduleMutationRefresh();
   }
 
   async function wireUi() {
@@ -1618,7 +1600,7 @@
     }
 
     ensureSendButtonHook(sendButton, compose);
-    await maybeHandleUrlTriggeredKeyShare(accountId, compose, sendButton);
+    await maybeHandlePendingKeyShare(accountId, compose, sendButton);
   }
 
   async function runRefreshCycle() {
@@ -1666,8 +1648,8 @@
       }
       mutationRefreshQueued = false;
       mutationRefreshInFlight = false;
-      urlTriggeredKeyShareInFlight = false;
-      lastHandledUrlTriggeredKeyShareAccountId = "";
+      keyShareIntentCheckInFlight = false;
+      checkedKeyShareIntentAccountId = "";
       observer.disconnect();
       idleWaiters.length = 0;
     });

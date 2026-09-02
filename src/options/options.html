@@ -28,12 +28,12 @@
         <h2>Ключ шифрования</h2>
         <label for="fingerprint-short-output">Короткий отпечаток ключа</label>
         <div class="inline-actions">
-          <input id="fingerprint-short-output" class="mono" readonly />
+          <input id="fingerprint-short-output" class="mono" readonly spellcheck="false" />
           <button id="copy-fingerprint-short" class="btn btn-ghost" type="button">Копировать</button>
         </div>
         <label for="fingerprint-full-output">Полный отпечаток ключа</label>
         <div class="inline-actions">
-          <input id="fingerprint-full-output" class="mono" readonly />
+          <input id="fingerprint-full-output" class="mono" readonly spellcheck="false" />
           <button id="copy-fingerprint-full" class="btn btn-ghost" type="button">Копировать</button>
         </div>
         <div class="actions">
@@ -45,7 +45,7 @@
       <section class="card">
         <h2>Импорт ключа шифрования</h2>
         <p class="note">Вставьте приватный ключ в текстовом формате (armored).</p>
-        <textarea id="private-key-input" placeholder="-----BEGIN PGP PRIVATE KEY BLOCK-----"></textarea>
+        <textarea id="private-key-input" placeholder="-----BEGIN PGP PRIVATE KEY BLOCK-----" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
         <div class="actions">
           <button id="import-identity" class="btn btn-primary">Импортировать</button>
         </div>
@@ -54,7 +54,7 @@
       <section class="card">
         <h2>Публичный ключ</h2>
         <p class="note">Этот ключ можно свободно передавать собеседникам.</p>
-        <textarea id="public-key-output" class="mono" readonly></textarea>
+        <textarea id="public-key-output" class="mono" readonly spellcheck="false"></textarea>
         <div class="actions">
           <button id="copy-public-key" class="btn btn-ghost" type="button">Копировать публичный ключ</button>
         </div>
@@ -63,9 +63,8 @@
       <section class="card">
         <h2>Экспорт приватного ключа</h2>
         <p class="note">Резервная копия. Храните в надёжном месте и никому не передавайте.</p>
-        <textarea id="private-key-output" class="mono" readonly></textarea>
         <div class="actions">
-          <button id="copy-private-key" class="btn btn-ghost" type="button">Копировать приватный ключ</button>
+          <button id="download-private-key" class="btn btn-ghost" type="button">Скачать приватный ключ (.asc)</button>
         </div>
       </section>
 

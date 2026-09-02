@@ -3,7 +3,6 @@ import {
   copyTextToClipboard,
   openUrlInNewTab,
   buildVkDialogUrl,
-  buildVkContactShareUrl,
   KEY_REPLACEMENT_WARNING
 } from "../common/helpers.js";
 import { formatFingerprint, formatShortFingerprint } from "../common/fingerprint.js";
@@ -204,7 +203,15 @@ function renderContactActions(contact, state) {
     await reloadMain();
   };
   const openDialog = () => openUrlInNewTab(buildVkDialogUrl(contactAccountId(contact)));
-  const shareKey = () => openUrlInNewTab(buildVkContactShareUrl(contactAccountId(contact)));
+  const shareKey = async () => {
+    const response = await sendMessage("mc:open-key-share-dialog", {
+      platform: contactPlatform(contact),
+      accountId: contactAccountId(contact)
+    });
+    if (!response?.ok) {
+      showFeedback(false, "Не удалось открыть диалог для отправки публичного ключа.", "view-contact");
+    }
+  };
 
   if (state === TRUST.NEW) {
     addButton("Проверил отпечаток", "btn-primary", () => setTrust(TRUST.TRUSTED));

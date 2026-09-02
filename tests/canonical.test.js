@@ -6,7 +6,8 @@ import {
   canonicalMessagePayload,
   normalizeAccountId,
   normalizeDisplayName,
-  normalizePlatform
+  normalizePlatform,
+  normalizeVkAccountId
 } from "../src/common/canonical.js";
 import { PLATFORM } from "../src/common/constants.js";
 
@@ -17,6 +18,13 @@ test("normalizePlatform accepts VK and rejects unsupported platforms", () => {
 
 test("normalizeAccountId trims whitespace", () => {
   assert.equal(normalizeAccountId("  12345  "), "12345");
+});
+
+test("normalizeVkAccountId accepts only positive decimal VK ids", () => {
+  assert.equal(normalizeVkAccountId("  12345  "), "12345");
+  for (const invalid of ["", "0", "-1", "+1", "01", "1.5", "id123", "123:contact"]) {
+    assert.throws(() => normalizeVkAccountId(invalid), /invalid VK accountId/);
+  }
 });
 
 test("normalizeDisplayName returns empty string for non-string values", () => {

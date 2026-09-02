@@ -21,7 +21,8 @@ export const STORAGE = Object.freeze({
   IDENTITY: "identity",
   SETTINGS: "settings",
   BINDING_PREFIX: "binding:",
-  CONTACT_PREFIX: "contact:"
+  CONTACT_PREFIX: "contact:",
+  KEY_SHARE_INTENT_PREFIX: "key-share-intent:"
 });
 
 export const PLATFORM = Object.freeze({

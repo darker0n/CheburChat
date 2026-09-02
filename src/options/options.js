@@ -1,9 +1,7 @@
 import { formatFingerprint, formatShortFingerprint } from "../common/fingerprint.js";
 import {
   KEY_REPLACEMENT_WARNING,
-  buildVkContactShareUrl,
   copyTextToClipboard as copyTextToClipboardShared,
-  openUrlInNewTab,
   sendMessage
 } from "../common/helpers.js";
 
@@ -61,7 +59,6 @@ async function refreshIdentity() {
   const shortFingerprint = document.querySelector("#fingerprint-short-output");
   const fullFingerprint = document.querySelector("#fingerprint-full-output");
   const pub = document.querySelector("#public-key-output");
-  const priv = document.querySelector("#private-key-output");
   const createButton = document.querySelector("#create-identity");
 
   if (!identity) {
@@ -70,7 +67,6 @@ async function refreshIdentity() {
     shortFingerprint.value = "";
     fullFingerprint.value = "";
     pub.value = "";
-    priv.value = "";
     return;
   }
 
@@ -82,8 +78,6 @@ async function refreshIdentity() {
   fullFingerprint.value = fullFingerprintText;
   pub.value = identity.publicKeyArmored;
 
-  const privResponse = await sendMessage("mc:get-private-key", {}, chrome);
-  priv.value = privResponse.ok ? privResponse.privateKeyArmored : "";
 }
 
 async function ensureIdentityForKeyShare() {
@@ -115,15 +109,40 @@ async function shareKeyWithContact(contact) {
   const identity = await ensureIdentityForKeyShare();
   if (!identity) return;
 
-  const opened = await openUrlInNewTab(buildVkContactShareUrl(accountId), {
-    chromeApi: chrome,
-    windowApi: window
+  const response = await sendMessage("mc:open-key-share-dialog", {
+    platform,
+    accountId
   });
-  if (!opened) {
+  if (!response?.ok) {
     setMessage("Не удалось открыть диалог VK для повторной отправки ключа.", true);
     return;
   }
   setMessage(`Открываю диалог с контактом ${mainLabel}. Публичный ключ будет отправлен автоматически.`);
+}
+
+async function downloadPrivateKey() {
+  const response = await sendMessage("mc:get-private-key", {}, chrome);
+  const privateKeyArmored = String(response?.privateKeyArmored || "");
+  if (!response?.ok || !privateKeyArmored) {
+    setMessage("Не удалось подготовить приватный ключ для скачивания.", true);
+    return;
+  }
+
+  try {
+    const blob = new Blob([privateKeyArmored], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "cheburchat-private-key.asc";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setMessage("Приватный ключ сохранён в файл.");
+  } catch (_error) {
+    setMessage("Не удалось сохранить приватный ключ в файл.", true);
+  }
 }
 
 async function createIdentity() {
@@ -310,9 +329,7 @@ document.querySelector("#copy-fingerprint-full").addEventListener("click", async
 document.querySelector("#copy-public-key").addEventListener("click", async () => {
   await copyTextToClipboard(document.querySelector("#public-key-output").value, "публичный ключ");
 });
-document.querySelector("#copy-private-key").addEventListener("click", async () => {
-  await copyTextToClipboard(document.querySelector("#private-key-output").value, "приватный ключ");
-});
+document.querySelector("#download-private-key").addEventListener("click", downloadPrivateKey);
 const saveDebugModeButton = safeQuery("#save-debug-mode");
 if (saveDebugModeButton) {
   saveDebugModeButton.addEventListener("click", saveDebugMode);

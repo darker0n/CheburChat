@@ -5,42 +5,48 @@ import { STORAGE, TRUST } from "../src/common/constants.js";
 
 function createChromeStorageMock() {
   const state = new Map();
+  const sessionState = new Map();
+
+  const createArea = (targetState) => ({
+    async get(key) {
+      if (typeof key === "string") {
+        return targetState.has(key) ? { [key]: targetState.get(key) } : {};
+      }
+      if (key === null) {
+        return Object.fromEntries(targetState.entries());
+      }
+      return {};
+    },
+    async set(value) {
+      for (const [key, data] of Object.entries(value)) {
+        targetState.set(key, data);
+      }
+    },
+    async remove(key) {
+      targetState.delete(key);
+    }
+  });
 
   return {
     state,
+    sessionState,
     chrome: {
       storage: {
-        local: {
-          async get(key) {
-            if (typeof key === "string") {
-              return state.has(key) ? { [key]: state.get(key) } : {};
-            }
-            if (key === null) {
-              return Object.fromEntries(state.entries());
-            }
-            return {};
-          },
-          async set(value) {
-            for (const [key, data] of Object.entries(value)) {
-              state.set(key, data);
-            }
-          },
-          async remove(key) {
-            state.delete(key);
-          }
-        }
+        local: createArea(state),
+        session: createArea(sessionState)
       }
     }
   };
 }
 
-const { chrome, state } = createChromeStorageMock();
+const { chrome, state, sessionState } = createChromeStorageMock();
 globalThis.chrome = chrome;
 
 const store = await import("../src/background/store.js");
 
 test.beforeEach(() => {
   state.clear();
+  sessionState.clear();
 });
 
 test("setIdentity/getIdentity roundtrip", async () => {
@@ -205,4 +211,49 @@ test("mergeContact updates only targeted contact key and keeps unrelated records
     trustState: TRUST.TRUSTED,
     displayName: "Second"
   });
+});
+
+test("concurrent contact mutations preserve fields from both updates", async () => {
+  await store.setContact({
+    platform: "vk",
+    accountId: "300",
+    trustState: TRUST.NEW
+  });
+
+  await Promise.all([
+    store.mergeContact({ platform: "vk", accountId: "300", displayName: "Алиса" }),
+    store.mergeContact({ platform: "vk", accountId: "300", fingerprintFull: "ABCD" })
+  ]);
+
+  assert.deepEqual(state.get(`${STORAGE.CONTACT_PREFIX}vk:300`), {
+    platform: "vk",
+    accountId: "300",
+    trustState: TRUST.NEW,
+    displayName: "Алиса",
+    fingerprintFull: "ABCD"
+  });
+});
+
+test("concurrent settings mutations preserve independent fields", async () => {
+  await store.setSettings({ schemaVersion: 1, debugMode: false, warningThresholdChars: 1800 });
+
+  await Promise.all([
+    store.updateSettings((current) => ({ ...current, debugMode: true })),
+    store.updateSettings((current) => ({ ...current, warningThresholdChars: 2000 }))
+  ]);
+
+  assert.deepEqual(state.get(STORAGE.SETTINGS), {
+    schemaVersion: 1,
+    debugMode: true,
+    warningThresholdChars: 2000
+  });
+});
+
+test("key-share intent is stored in session storage and consumed once", async () => {
+  const intent = { platform: "vk", accountId: "400", expiresAt: Date.now() + 1000 };
+  await store.setKeyShareIntent("vk", "400", intent);
+
+  assert.deepEqual(await store.consumeKeyShareIntent("vk", "400"), intent);
+  assert.equal(await store.consumeKeyShareIntent("vk", "400"), null);
+  assert.equal(sessionState.size, 0);
 });

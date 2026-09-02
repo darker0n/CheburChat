@@ -1,4 +1,8 @@
-import { canonicalAnnouncementForSignature, normalizeAccountId, normalizePlatform } from "../common/canonical.js";
+import {
+  canonicalAnnouncementForSignature,
+  normalizePlatform,
+  normalizeVkAccountId
+} from "../common/canonical.js";
 import { INTERNAL_ERROR, PROTOCOL, TRUST } from "../common/constants.js";
 import { formatShortFingerprint, normalizeFingerprint } from "../common/fingerprint.js";
 import {
@@ -22,16 +26,46 @@ import {
   getBinding,
   getContact,
   getIdentity,
-  mergeContact,
-  getSettings,
+  consumeKeyShareIntent,
   removeContact,
-  setBinding,
-  setIdentity,
-  setSettings
+  removeKeyShareIntent,
+  setKeyShareIntent,
+  updateBinding,
+  updateContact,
+  updateIdentity,
+  updateSettings
 } from "./store.js";
 
 const RECORD_SCHEMA_VERSION = 1;
 const OPTIONS_PAGE_PATH = "src/options/options.html";
+const POPUP_PAGE_PATH = "src/popup/popup.html";
+const KEY_SHARE_INTENT_TTL_MS = 60 * 1000;
+const EXTENSION_PAGE_ONLY_MESSAGES = new Set([
+  "mc:init-identity",
+  "mc:import-identity",
+  "mc:get-private-key",
+  "mc:set-debug-mode",
+  "mc:set-warning-threshold",
+  "mc:set-backup-acknowledged",
+  "mc:open-key-share-dialog"
+]);
+
+let storageAccessError = null;
+const storageAccessReady = Promise.resolve()
+  .then(() => {
+    if (typeof chrome?.storage?.local?.setAccessLevel !== "function") {
+      throw new Error("trusted_storage_access_unavailable");
+    }
+    return chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+  })
+  .catch((error) => {
+    storageAccessError = error;
+  });
+
+async function requireTrustedStorageAccess() {
+  await storageAccessReady;
+  if (storageAccessError) throw storageAccessError;
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -49,31 +83,49 @@ function utf8ByteLength(value) {
 function normalizeOptionalMessageId(value) {
   const text = String(value || "").trim();
   if (!text) return "";
-  const match = text.match(/-?[0-9]+/);
-  return match ? match[0] : "";
+  return /^-?(?:0|[1-9][0-9]*)$/.test(text) ? text : "";
 }
 
 function normalizeOptionalAccountId(value) {
   const text = String(value || "").trim();
   if (!text) return "";
   try {
-    return normalizeAccountId(text);
+    return normalizeVkAccountId(text);
   } catch (_error) {
     return "";
   }
 }
 
-function isOptionsPageSender(sender) {
+function isInternalSender(sender) {
+  return Boolean(sender?.id && sender.id === chrome?.runtime?.id);
+}
+
+function isExtensionPageSender(sender, allowedPaths = [OPTIONS_PAGE_PATH, POPUP_PAGE_PATH]) {
+  if (!isInternalSender(sender)) return false;
   const senderUrl = String(sender?.url || "").trim();
   if (!senderUrl) return false;
+  if (typeof chrome?.runtime?.getURL !== "function") return false;
+  return allowedPaths.some((path) => senderUrl === chrome.runtime.getURL(path));
+}
 
+function isOptionsPageSender(sender) {
+  return isExtensionPageSender(sender, [OPTIONS_PAGE_PATH]);
+}
+
+function isVkContentSender(sender) {
+  if (!isInternalSender(sender)) return false;
   try {
-    if (typeof chrome?.runtime?.getURL === "function") {
-      return senderUrl === chrome.runtime.getURL(OPTIONS_PAGE_PATH);
-    }
-  } catch (_error) {}
-
-  return senderUrl.startsWith("chrome-extension://") && senderUrl.endsWith(`/${OPTIONS_PAGE_PATH}`);
+    const url = new URL(String(sender?.url || ""));
+    const hostname = url.hostname.toLowerCase();
+    const isVkHostname =
+      hostname === "vk.com" ||
+      hostname === "vk.ru" ||
+      hostname.endsWith(".vk.com") ||
+      hostname.endsWith(".vk.ru");
+    return url.protocol === "https:" && isVkHostname;
+  } catch (_error) {
+    return false;
+  }
 }
 
 function isOlderMessageId(incomingMessageId, storedMessageId) {
@@ -149,18 +201,19 @@ function buildDefaultSettings(overrides = {}) {
 }
 
 async function ensureSettings() {
-  const current = await getSettings();
-  const normalized = buildDefaultSettings(current || {});
-  if (
-    !current ||
-    current.schemaVersion !== normalized.schemaVersion ||
-    current.debugMode !== normalized.debugMode ||
-    current.warningThresholdChars !== normalized.warningThresholdChars ||
-    current.needsBackupAcknowledgement !== normalized.needsBackupAcknowledgement
-  ) {
-    await setSettings(normalized);
-  }
-  return normalized;
+  return updateSettings((current) => {
+    const normalized = buildDefaultSettings(current || {});
+    if (
+      current &&
+      current.schemaVersion === normalized.schemaVersion &&
+      current.debugMode === normalized.debugMode &&
+      current.warningThresholdChars === normalized.warningThresholdChars &&
+      current.needsBackupAcknowledgement === normalized.needsBackupAcknowledgement
+    ) {
+      return current;
+    }
+    return normalized;
+  });
 }
 
 function effectiveTrustState(contact) {
@@ -214,18 +267,26 @@ async function resolveKeyConflict(existingContact, incomingFingerprint, incoming
 }
 
 async function onInitIdentity({ displayName }) {
-  const identity = await generateIdentity(displayName || "");
-  await setIdentity(identity);
-  const settings = await ensureSettings();
-  await setSettings({ ...settings, needsBackupAcknowledgement: true });
+  const identity = await updateIdentity(async () => {
+    const generated = await generateIdentity(displayName || "");
+    await updateSettings((current) => ({
+      ...buildDefaultSettings(current || {}),
+      needsBackupAcknowledgement: true
+    }));
+    return generated;
+  });
   return { ok: true, identity };
 }
 
 async function onImportIdentity({ privateKeyArmored }) {
-  const identity = await importIdentity(privateKeyArmored);
-  await setIdentity(identity);
-  const settings = await ensureSettings();
-  await setSettings({ ...settings, needsBackupAcknowledgement: false });
+  const identity = await updateIdentity(async () => {
+    const imported = await importIdentity(privateKeyArmored);
+    await updateSettings((current) => ({
+      ...buildDefaultSettings(current || {}),
+      needsBackupAcknowledgement: false
+    }));
+    return imported;
+  });
   return { ok: true, identity };
 }
 
@@ -249,12 +310,10 @@ async function onGetSettings() {
 
 async function onSetDebugMode({ debugMode }) {
   if (typeof debugMode !== "boolean") throw new Error("debugMode must be boolean");
-  const current = await ensureSettings();
-  const updated = {
-    ...current,
+  const updated = await updateSettings((current) => ({
+    ...buildDefaultSettings(current || {}),
     debugMode
-  };
-  await setSettings(updated);
+  }));
   return { ok: true, settings: updated };
 }
 
@@ -267,12 +326,10 @@ async function onSetWarningThreshold({ warningThresholdChars }) {
     throw new Error(`warningThresholdChars must be between 1 and ${PROTOCOL.HARD_LIMIT_CHARS}`);
   }
 
-  const current = await ensureSettings();
-  const updated = {
-    ...current,
+  const updated = await updateSettings((current) => ({
+    ...buildDefaultSettings(current || {}),
     warningThresholdChars: threshold
-  };
-  await setSettings(updated);
+  }));
   return { ok: true, settings: updated };
 }
 
@@ -291,49 +348,48 @@ async function onRemoveContact({ platform, accountId }, sender) {
     throw new Error("remove_contact_requires_options_page");
   }
   const normalizedPlatform = normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   await removeContact(normalizedPlatform, normalizedAccountId);
   return { ok: true };
 }
 
 async function onMarkOwnKeyShared({ platform, accountId }) {
   const normalizedPlatform = normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   const identity = await getIdentity();
   if (!identity?.fingerprintFull) {
     throw new Error("identity not initialized");
   }
-  const contact = await mergeContact({
-    schemaVersion: RECORD_SCHEMA_VERSION,
+  const contact = await updateContact(normalizedPlatform, normalizedAccountId, (current) => ({
+    ...current,
+    schemaVersion: current.schemaVersion || RECORD_SCHEMA_VERSION,
     platform: normalizedPlatform,
     accountId: normalizedAccountId,
     lastOwnKeySharedAt: nowIso(),
     lastOwnKeyFingerprintShared: normalizeFingerprint(identity.fingerprintFull)
-  });
+  }));
   return { ok: true, contact };
 }
 
 async function onUpsertBinding({ platform, accountId, displayName }) {
   normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   const normalizedDisplayName = typeof displayName === "string" ? displayName.trim() : "";
   const now = nowIso();
-  const existing = await getBinding(platform, normalizedAccountId);
-  const updated = {
+  const updated = await updateBinding(platform, normalizedAccountId, (existing) => ({
     schemaVersion: existing?.schemaVersion || RECORD_SCHEMA_VERSION,
     platform,
     accountId: normalizedAccountId,
     displayName: normalizedDisplayName || existing?.displayName || "",
     createdAt: existing?.createdAt || now,
     updatedAt: now
-  };
-  await setBinding(platform, normalizedAccountId, updated);
+  }));
   return { ok: true, binding: updated };
 }
 
 async function onCreateKeyAnnouncement({ platform, accountId, displayName }) {
   normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   const identity = await getIdentity();
   if (!identity) throw new Error("identity not initialized");
 
@@ -354,22 +410,22 @@ async function onCreateKeyAnnouncement({ platform, accountId, displayName }) {
 
 async function onSyncContactProfile({ platform, accountId, displayName }) {
   normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   const normalizedDisplayName = typeof displayName === "string" ? displayName.trim() : "";
-  const existing = await getContact(platform, normalizedAccountId);
 
   if (!normalizedDisplayName) {
-    return { ok: true, contact: existing };
+    return { ok: true, contact: await getContact(platform, normalizedAccountId) };
   }
 
-  const updated = await mergeContact({
+  const updated = await updateContact(platform, normalizedAccountId, (existing) => ({
+    ...existing,
     schemaVersion: existing.schemaVersion || RECORD_SCHEMA_VERSION,
     platform,
     accountId: normalizedAccountId,
     displayName: normalizedDisplayName,
     firstSeenAt: existing.firstSeenAt || nowIso(),
     lastUpdatedAt: nowIso()
-  });
+  }));
   return { ok: true, contact: updated };
 }
 
@@ -382,8 +438,8 @@ async function onProcessOutgoing({ platform, accountId, senderAccountId, body })
       ? configuredWarningThreshold
       : PROTOCOL.WARNING_THRESHOLD_CHARS;
   normalizePlatform(platform);
-  const normalizedDialogAccountId = normalizeAccountId(accountId);
-  const normalizedSenderAccountId = senderAccountId ? normalizeAccountId(senderAccountId) : "";
+  const normalizedDialogAccountId = normalizeVkAccountId(accountId);
+  const normalizedSenderAccountId = senderAccountId ? normalizeVkAccountId(senderAccountId) : "";
   requiredString("body", body);
 
   const identity = await getIdentity();
@@ -494,7 +550,7 @@ async function onProcessIncoming({
   const settings = await ensureSettings();
   const debugEnabled = Boolean(settings.debugMode);
   normalizePlatform(platform);
-  const normalizedDialogId = normalizeAccountId(dialogAccountId);
+  const normalizedDialogId = normalizeVkAccountId(dialogAccountId);
   const normalizedAuthorId = normalizeOptionalAccountId(messageAuthorAccountId);
   const normalizedLocalId = normalizeOptionalAccountId(localAccountId);
   const normalizedMessageId = normalizeOptionalMessageId(messageId);
@@ -502,11 +558,20 @@ async function onProcessIncoming({
   if (normalizedLocalId) {
     const binding = await getBinding(platform, normalizedLocalId);
     if (binding?.accountId) {
-      normalizedBoundLocalId = normalizeAccountId(binding.accountId);
+      normalizedBoundLocalId = normalizeVkAccountId(binding.accountId);
     }
   }
-  const kind = detectPayloadKind(rawText);
+  const normalizedRawText = typeof rawText === "string" ? rawText : String(rawText || "");
+  const kind = detectPayloadKind(normalizedRawText);
   if (kind === "none") return { ok: true, kind: "none" };
+  if (normalizedRawText.length > PROTOCOL.HARD_LIMIT_CHARS) {
+    return {
+      ok: true,
+      kind: kind === "key" ? "invalid_key" : "decrypt_failed",
+      reason: "payload_too_large",
+      errorType: INTERNAL_ERROR.WRAPPER_PARSE_FAILURE
+    };
+  }
   if (kind === "unsupported") {
     debugLog(debugEnabled, "incoming.unsupported_version", {
       errorType: INTERNAL_ERROR.UNSUPPORTED_PROTOCOL_VERSION,
@@ -551,7 +616,7 @@ async function onProcessIncoming({
   if (kind === "key") {
     let parsed;
     try {
-      parsed = parseKeyAnnouncementText(rawText);
+      parsed = parseKeyAnnouncementText(normalizedRawText);
     } catch (error) {
       return {
         ok: true,
@@ -570,7 +635,18 @@ async function onProcessIncoming({
         errorType: INTERNAL_ERROR.UNSUPPORTED_PROTOCOL_VERSION
       };
     }
-    if (typeof payload.accountId !== "string") {
+    let normalizedPayloadAccountId = "";
+    try {
+      normalizedPayloadAccountId = normalizeVkAccountId(payload.accountId);
+    } catch (_error) {
+      return {
+        ok: true,
+        kind: "invalid_key",
+        reason: "invalid_account_id",
+        errorType: INTERNAL_ERROR.PAYLOAD_DECODE_FAILURE
+      };
+    }
+    if (payload.accountId !== normalizedPayloadAccountId) {
       return {
         ok: true,
         kind: "invalid_key",
@@ -619,7 +695,7 @@ async function onProcessIncoming({
         errorType: INTERNAL_ERROR.STORAGE_MISMATCH
       };
     }
-    if (payload.accountId !== normalizedAuthorId) {
+    if (normalizedPayloadAccountId !== normalizedAuthorId) {
       return {
         ok: true,
         kind: "invalid_key",
@@ -667,10 +743,10 @@ async function onProcessIncoming({
       };
     }
 
-    if (payload.accountId !== normalizedDialogId) {
+    if (normalizedPayloadAccountId !== normalizedDialogId) {
       const selfAuthoredAnnouncement =
         Boolean(normalizedBoundLocalId) &&
-        payload.accountId === normalizedBoundLocalId &&
+        normalizedPayloadAccountId === normalizedBoundLocalId &&
         normalizedAuthorId === normalizedBoundLocalId;
       if (selfAuthoredAnnouncement) {
         const normalizedIdentityFingerprint = normalizeFingerprint(identity.fingerprintFull);
@@ -686,13 +762,14 @@ async function onProcessIncoming({
             errorType: INTERNAL_ERROR.STORAGE_MISMATCH
           };
         }
-        await mergeContact({
-          schemaVersion: RECORD_SCHEMA_VERSION,
+        await updateContact(platform, normalizedDialogId, (current) => ({
+          ...current,
+          schemaVersion: current.schemaVersion || RECORD_SCHEMA_VERSION,
           platform,
           accountId: normalizedDialogId,
           lastOwnKeySharedAt: nowIso(),
           lastOwnKeyFingerprintShared: normalizedIdentityFingerprint
-        });
+        }));
         debugLog(debugEnabled, "incoming.key_ignored_self_announcement", {
           platform,
           dialogAccountId: normalizedDialogId,
@@ -709,12 +786,50 @@ async function onProcessIncoming({
       };
     }
 
-    const existing = await getContact(platform, payload.accountId);
-    const normalizedStoredAnnouncementMessageId = normalizeOptionalMessageId(existing.lastAnnouncementMessageId);
-    if (isOlderMessageId(normalizedMessageId, normalizedStoredAnnouncementMessageId)) {
+    let ignoredAsStale = false;
+    let normalizedStoredAnnouncementMessageId = "";
+    let changed = false;
+    let ownKeyAlreadyShared = false;
+    const updated = await updateContact(platform, normalizedPayloadAccountId, async (existing) => {
+      normalizedStoredAnnouncementMessageId = normalizeOptionalMessageId(existing.lastAnnouncementMessageId);
+      if (isOlderMessageId(normalizedMessageId, normalizedStoredAnnouncementMessageId)) {
+        ignoredAsStale = true;
+        return existing;
+      }
+
+      const conflict = await resolveKeyConflict(existing, normalizedDerivedFingerprint, payload.publicKeyArmored);
+      changed = conflict.changed;
+      const unresolvedConflict = existing.trustState === TRUST.CHANGED || Boolean(existing.hasKeyConflict);
+      ownKeyAlreadyShared =
+        normalizeFingerprint(existing.lastOwnKeyFingerprintShared) === normalizeFingerprint(identity.fingerprintFull);
+      return {
+        ...existing,
+        schemaVersion: existing.schemaVersion || RECORD_SCHEMA_VERSION,
+        platform,
+        accountId: normalizedPayloadAccountId,
+        displayName: payload.displayName || "",
+        publicKeyArmored: payload.publicKeyArmored,
+        fingerprintFull: normalizedDerivedFingerprint,
+        fingerprintShort: formatShortFingerprint(normalizedDerivedFingerprint),
+        firstSeenAt: existing.firstSeenAt || nowIso(),
+        lastUpdatedAt: nowIso(),
+        hasKeyConflict: changed || unresolvedConflict,
+        previousFingerprintFull: changed
+          ? conflict.previousFingerprintFull || existing.previousFingerprintFull || null
+          : existing.previousFingerprintFull,
+        lastAnnouncementMessageId: normalizedMessageId || existing.lastAnnouncementMessageId || null,
+        trustState:
+          changed || unresolvedConflict
+            ? TRUST.CHANGED
+            : existing.trustState === TRUST.MISSING
+              ? TRUST.NEW
+              : existing.trustState
+      };
+    });
+    if (ignoredAsStale) {
       debugLog(debugEnabled, "incoming.key_ignored_stale", {
         platform,
-        accountId: payload.accountId,
+        accountId: normalizedPayloadAccountId,
         messageId: normalizedMessageId,
         lastAnnouncementMessageId: normalizedStoredAnnouncementMessageId
       });
@@ -724,44 +839,17 @@ async function onProcessIncoming({
         reason: "stale_announcement"
       };
     }
-    const conflict = await resolveKeyConflict(existing, normalizedDerivedFingerprint, payload.publicKeyArmored);
-    const changed = conflict.changed;
-    const unresolvedConflict = existing.trustState === TRUST.CHANGED || Boolean(existing.hasKeyConflict);
-    const ownKeyAlreadyShared =
-      normalizeFingerprint(existing.lastOwnKeyFingerprintShared) === normalizeFingerprint(identity.fingerprintFull);
-    const updated = await mergeContact({
-      schemaVersion: existing.schemaVersion || RECORD_SCHEMA_VERSION,
-      platform,
-      accountId: payload.accountId,
-      displayName: payload.displayName || "",
-      publicKeyArmored: payload.publicKeyArmored,
-      fingerprintFull: normalizedDerivedFingerprint,
-      fingerprintShort: formatShortFingerprint(normalizedDerivedFingerprint),
-      firstSeenAt: existing.firstSeenAt || nowIso(),
-      lastUpdatedAt: nowIso(),
-      hasKeyConflict: changed || unresolvedConflict,
-      previousFingerprintFull: changed
-        ? conflict.previousFingerprintFull || existing.previousFingerprintFull || null
-        : existing.previousFingerprintFull,
-      lastAnnouncementMessageId: normalizedMessageId || existing.lastAnnouncementMessageId || null,
-      trustState:
-        changed || unresolvedConflict
-          ? TRUST.CHANGED
-          : existing.trustState === TRUST.MISSING
-            ? TRUST.NEW
-            : existing.trustState
-    });
     if (changed) {
       debugLog(debugEnabled, "incoming.contact_key_conflict", {
         errorType: INTERNAL_ERROR.CONTACT_KEY_CONFLICT,
         platform,
-        accountId: payload.accountId,
+        accountId: normalizedPayloadAccountId,
         messageId: normalizedMessageId
       });
     }
     debugLog(debugEnabled, "incoming.key_processed", {
       platform,
-      accountId: payload.accountId,
+      accountId: normalizedPayloadAccountId,
       messageId: normalizedMessageId,
       trustState: updated.trustState
     });
@@ -779,7 +867,7 @@ async function onProcessIncoming({
 
   let encodedPayload = "";
   try {
-    encodedPayload = parseEncryptedMessageText(rawText);
+    encodedPayload = parseEncryptedMessageText(normalizedRawText);
   } catch (error) {
     return {
       ok: true,
@@ -847,6 +935,25 @@ async function onProcessIncoming({
       };
     }
     if (typeof decrypted.accountId !== "string") {
+      return {
+        ok: true,
+        kind: "decrypt_failed",
+        reason: "invalid_account_id",
+        errorType: INTERNAL_ERROR.PAYLOAD_DECODE_FAILURE
+      };
+    }
+    let normalizedDecryptedAccountId = "";
+    try {
+      normalizedDecryptedAccountId = normalizeVkAccountId(decrypted.accountId);
+    } catch (_error) {
+      return {
+        ok: true,
+        kind: "decrypt_failed",
+        reason: "invalid_account_id",
+        errorType: INTERNAL_ERROR.PAYLOAD_DECODE_FAILURE
+      };
+    }
+    if (decrypted.accountId !== normalizedDecryptedAccountId) {
       return {
         ok: true,
         kind: "decrypt_failed",
@@ -934,41 +1041,81 @@ async function onProcessIncoming({
 
 async function onSetTrust({ platform, accountId, trustState }) {
   normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   if (![TRUST.NEW, TRUST.TRUSTED, TRUST.CHANGED, TRUST.MISSING, TRUST.REJECTED].includes(trustState)) {
     throw new Error("invalid trust state");
   }
-  const contact = await getContact(platform, normalizedAccountId);
-  const requiresKnownKey = [TRUST.NEW, TRUST.TRUSTED, TRUST.CHANGED, TRUST.REJECTED].includes(trustState);
-  if (requiresKnownKey && !contact.publicKeyArmored) {
-    throw new Error("contact key is missing");
-  }
-  const keepConflictMarkers = trustState === TRUST.CHANGED;
-  const updated = await mergeContact({
-    schemaVersion: contact.schemaVersion || RECORD_SCHEMA_VERSION,
-    platform,
-    accountId: normalizedAccountId,
-    trustState,
-    hasKeyConflict: keepConflictMarkers ? Boolean(contact.hasKeyConflict) : false,
-    previousFingerprintFull: keepConflictMarkers ? contact.previousFingerprintFull || null : null,
-    lastUpdatedAt: nowIso()
+  const updated = await updateContact(platform, normalizedAccountId, (contact) => {
+    const requiresKnownKey = [TRUST.NEW, TRUST.TRUSTED, TRUST.CHANGED, TRUST.REJECTED].includes(trustState);
+    if (requiresKnownKey && !contact.publicKeyArmored) {
+      throw new Error("contact key is missing");
+    }
+    const keepConflictMarkers = trustState === TRUST.CHANGED;
+    return {
+      ...contact,
+      schemaVersion: contact.schemaVersion || RECORD_SCHEMA_VERSION,
+      platform,
+      accountId: normalizedAccountId,
+      trustState,
+      hasKeyConflict: keepConflictMarkers ? Boolean(contact.hasKeyConflict) : false,
+      previousFingerprintFull: keepConflictMarkers ? contact.previousFingerprintFull || null : null,
+      lastUpdatedAt: nowIso()
+    };
   });
   return { ok: true, contact: updated };
 }
 
 async function onGetChatState({ platform, accountId }) {
   normalizePlatform(platform);
-  const normalizedAccountId = normalizeAccountId(accountId);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
   const state = await resolveChatState(platform, normalizedAccountId);
   return { ok: true, ...state };
 }
 
 async function onSetBackupAcknowledgement({ acknowledged }) {
   if (typeof acknowledged !== "boolean") throw new Error("acknowledged must be boolean");
-  const current = await ensureSettings();
-  const updated = { ...current, needsBackupAcknowledgement: !acknowledged };
-  await setSettings(updated);
+  const updated = await updateSettings((current) => ({
+    ...buildDefaultSettings(current || {}),
+    needsBackupAcknowledgement: !acknowledged
+  }));
   return { ok: true, settings: updated };
+}
+
+async function onOpenKeyShareDialog({ platform, accountId }) {
+  const normalizedPlatform = normalizePlatform(platform);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
+  if (typeof chrome?.tabs?.create !== "function") {
+    return { ok: false, error: "tab_open_unavailable" };
+  }
+
+  const intent = {
+    platform: normalizedPlatform,
+    accountId: normalizedAccountId,
+    expiresAt: Date.now() + KEY_SHARE_INTENT_TTL_MS
+  };
+  await setKeyShareIntent(normalizedPlatform, normalizedAccountId, intent);
+
+  const url = new URL("https://vk.com/im");
+  url.searchParams.set("sel", normalizedAccountId);
+  try {
+    await chrome.tabs.create({ url: url.toString() });
+    return { ok: true };
+  } catch (error) {
+    await removeKeyShareIntent(normalizedPlatform, normalizedAccountId);
+    return { ok: false, error: error?.message || "tab_open_failed" };
+  }
+}
+
+async function onConsumeKeyShareIntent({ platform, accountId }) {
+  const normalizedPlatform = normalizePlatform(platform);
+  const normalizedAccountId = normalizeVkAccountId(accountId);
+  const intent = await consumeKeyShareIntent(normalizedPlatform, normalizedAccountId);
+  const valid =
+    intent?.platform === normalizedPlatform &&
+    intent?.accountId === normalizedAccountId &&
+    Number.isFinite(intent?.expiresAt) &&
+    intent.expiresAt >= Date.now();
+  return { ok: true, pending: valid };
 }
 
 async function onOpenPopup() {
@@ -984,11 +1131,21 @@ async function onOpenPopup() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await requireTrustedStorageAccess();
   await ensureSettings();
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const run = async () => {
+    await requireTrustedStorageAccess();
+    if (!isInternalSender(sender)) throw new Error("internal_sender_required");
+    if (EXTENSION_PAGE_ONLY_MESSAGES.has(message?.type) && !isExtensionPageSender(sender)) {
+      throw new Error("extension_page_required");
+    }
+    if (message?.type === "mc:consume-key-share-intent" && !isVkContentSender(sender)) {
+      throw new Error("vk_content_sender_required");
+    }
+
     switch (message?.type) {
       case "mc:init-identity":
         return onInitIdentity(message.payload || {});
@@ -1028,6 +1185,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return onGetChatState(message.payload || {});
       case "mc:open-popup":
         return onOpenPopup();
+      case "mc:open-key-share-dialog":
+        return onOpenKeyShareDialog(message.payload || {});
+      case "mc:consume-key-share-intent":
+        return onConsumeKeyShareIntent(message.payload || {});
       default:
         return { ok: false, error: "unsupported_message_type" };
     }

@@ -101,12 +101,12 @@ input[readonly], textarea[readonly] { background: var(--paper-3); color: var(--i
 
 .btn-ghost, .btn-secondary,
 #refresh-identity, #copy-fingerprint-short, #copy-fingerprint-full, #copy-public-key,
-#copy-private-key, #refresh-contacts, #save-debug-mode, #save-warning-threshold, #onboarding-import {
+#download-private-key, #refresh-contacts, #save-debug-mode, #save-warning-threshold, #onboarding-import {
   background: var(--paper); color: var(--ink); border: 1.5px solid var(--paper-edge);
 }
 .btn-ghost:hover, .btn-secondary:hover,
 #refresh-identity:hover, #copy-fingerprint-short:hover, #copy-fingerprint-full:hover, #copy-public-key:hover,
-#copy-private-key:hover, #refresh-contacts:hover, #save-debug-mode:hover, #save-warning-threshold:hover, #onboarding-import:hover {
+#download-private-key:hover, #refresh-contacts:hover, #save-debug-mode:hover, #save-warning-threshold:hover, #onboarding-import:hover {
   border-color: var(--green); color: var(--green-text);
 }
 

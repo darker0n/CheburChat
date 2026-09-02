@@ -13,34 +13,46 @@ import * as openpgp from "../node_modules/openpgp/dist/openpgp.mjs";
 
 function createChromeMock() {
   const state = new Map();
+  const sessionState = new Map();
   const installedListeners = [];
   const messageListeners = [];
+  const createdTabs = [];
   let openOptionsPageCalls = 0;
   let openPopupCalls = 0;
+  let localStorageAccessLevel = "";
+
+  const createStorageArea = (targetState) => ({
+    async get(key) {
+      if (typeof key === "string") {
+        return targetState.has(key) ? { [key]: targetState.get(key) } : {};
+      }
+      if (key === null) {
+        return Object.fromEntries(targetState.entries());
+      }
+      return {};
+    },
+    async set(value) {
+      for (const [k, v] of Object.entries(value)) {
+        targetState.set(k, v);
+      }
+    },
+    async remove(key) {
+      targetState.delete(key);
+    }
+  });
+
+  const localStorage = createStorageArea(state);
+  localStorage.setAccessLevel = async ({ accessLevel }) => {
+    localStorageAccessLevel = accessLevel;
+  };
 
   const chrome = {
     storage: {
-      local: {
-        async get(key) {
-          if (typeof key === "string") {
-            return state.has(key) ? { [key]: state.get(key) } : {};
-          }
-          if (key === null) {
-            return Object.fromEntries(state.entries());
-          }
-          return {};
-        },
-        async set(value) {
-          for (const [k, v] of Object.entries(value)) {
-            state.set(k, v);
-          }
-        },
-        async remove(key) {
-          state.delete(key);
-        }
-      }
+      local: localStorage,
+      session: createStorageArea(sessionState)
     },
     runtime: {
+      id: "mockid",
       onInstalled: {
         addListener(listener) {
           installedListeners.push(listener);
@@ -62,12 +74,20 @@ function createChromeMock() {
       async openPopup() {
         openPopupCalls += 1;
       }
+    },
+    tabs: {
+      async create(details) {
+        createdTabs.push(details);
+        return { id: createdTabs.length, ...details };
+      }
     }
   };
 
   return {
     chrome,
     state,
+    sessionState,
+    createdTabs,
     installedListeners,
     messageListeners,
     get openOptionsPageCalls() {
@@ -75,6 +95,9 @@ function createChromeMock() {
     },
     get openPopupCalls() {
       return openPopupCalls;
+    },
+    get localStorageAccessLevel() {
+      return localStorageAccessLevel;
     }
   };
 }
@@ -89,7 +112,11 @@ assert.equal(mock.messageListeners.length, 1, "worker should register exactly on
 
 const onMessage = mock.messageListeners[0];
 
-async function dispatchMessage(type, payload = {}, sender = {}) {
+async function dispatchMessage(
+  type,
+  payload = {},
+  sender = { id: "mockid", url: "chrome-extension://mockid/src/popup/popup.html" }
+) {
   return await new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => {
@@ -154,6 +181,8 @@ async function buildSignedEncryptedRawText({
 
 test.beforeEach(() => {
   mock.state.clear();
+  mock.sessionState.clear();
+  mock.createdTabs.length = 0;
 });
 
 test("onInstalled initializes default settings", async () => {
@@ -167,11 +196,33 @@ test("onInstalled initializes default settings", async () => {
     needsBackupAcknowledgement: false
   });
   assert.equal(mock.openOptionsPageCalls, 0);
+  assert.equal(mock.localStorageAccessLevel, "TRUSTED_CONTEXTS");
 });
 
 test("onInstalled does not open options on fresh install", async () => {
   await mock.installedListeners[0]({ reason: "install" });
   assert.equal(mock.openOptionsPageCalls, 0);
+});
+
+test("worker rejects messages that are not from this extension", async () => {
+  const response = await dispatchMessage("mc:get-settings", {}, {
+    id: "another-extension",
+    url: "chrome-extension://another-extension/popup.html"
+  });
+
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "internal_sender_required");
+});
+
+test("content scripts cannot request private key or replace identity", async () => {
+  const sender = { id: "mockid", url: "https://vk.com/im?sel=100" };
+  const privateKey = await dispatchMessage("mc:get-private-key", {}, sender);
+  const imported = await dispatchMessage("mc:import-identity", { privateKeyArmored: "PRIVATE" }, sender);
+
+  assert.equal(privateKey.ok, false);
+  assert.equal(privateKey.error, "extension_page_required");
+  assert.equal(imported.ok, false);
+  assert.equal(imported.error, "extension_page_required");
 });
 
 test("settings roundtrip supports debug mode toggle", async () => {
@@ -264,6 +315,40 @@ test("mc:open-popup calls chrome.action.openPopup", async () => {
   assert.equal(mock.openPopupCalls, 1);
 });
 
+test("key-share dialog uses one-time session intent without URL command parameter", async () => {
+  const opened = await dispatchMessage("mc:open-key-share-dialog", {
+    platform: PLATFORM.VK,
+    accountId: "200"
+  });
+
+  assert.equal(opened.ok, true);
+  assert.deepEqual(mock.createdTabs, [{ url: "https://vk.com/im?sel=200" }]);
+
+  const contentSender = { id: "mockid", url: "https://vk.com/im?sel=200" };
+  const first = await dispatchMessage("mc:consume-key-share-intent", {
+    platform: PLATFORM.VK,
+    accountId: "200"
+  }, contentSender);
+  const second = await dispatchMessage("mc:consume-key-share-intent", {
+    platform: PLATFORM.VK,
+    accountId: "200"
+  }, contentSender);
+
+  assert.deepEqual(first, { ok: true, pending: true });
+  assert.deepEqual(second, { ok: true, pending: false });
+  assert.equal(mock.sessionState.size, 0);
+});
+
+test("key-share intent can only be consumed by VK content script", async () => {
+  const response = await dispatchMessage("mc:consume-key-share-intent", {
+    platform: PLATFORM.VK,
+    accountId: "200"
+  });
+
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "vk_content_sender_required");
+});
+
 test("mc:get-private-key returns private key separately", async () => {
   await dispatchMessage("mc:init-identity", { displayName: "" });
   const result = await dispatchMessage("mc:get-private-key");
@@ -288,6 +373,18 @@ test("upsert-binding trims account id and persists by normalized key", async () 
   assert.equal(response.binding.accountId, "500");
   assert.equal(response.binding.schemaVersion, 1);
   assert.equal(mock.state.has(`${STORAGE.BINDING_PREFIX}${PLATFORM.VK}:500`), true);
+});
+
+test("worker rejects non-direct VK account ids before storage access", async () => {
+  for (const accountId of ["", "0", "-200", "200:settings", "abc"]) {
+    const response = await dispatchMessage("mc:upsert-binding", {
+      platform: PLATFORM.VK,
+      accountId,
+      displayName: "Invalid"
+    });
+    assert.equal(response.ok, false, `expected ${JSON.stringify(accountId)} to be rejected`);
+    assert.match(response.error, /invalid VK accountId/);
+  }
 });
 
 test("sync-contact-profile stores known dialog display name without requiring a key", async () => {
@@ -371,6 +468,7 @@ test("remove-contact deletes stored contact by normalized account id", async () 
     platform: PLATFORM.VK,
     accountId: " 700 "
   }, {
+    id: "mockid",
     url: "chrome-extension://mockid/src/options/options.html"
   });
 
@@ -392,6 +490,7 @@ test("remove-contact rejects requests outside options page", async () => {
     platform: PLATFORM.VK,
     accountId: "700"
   }, {
+    id: "mockid",
     url: "https://vk.com/im?sel=700"
   });
 
@@ -1154,6 +1253,21 @@ test("process-incoming returns identity_missing for wrapped payloads when identi
   assert.equal(result.kind, "identity_missing");
 });
 
+test("process-incoming rejects oversized protocol wrappers before OpenPGP parsing", async () => {
+  const result = await dispatchMessage("mc:process-incoming", {
+    platform: PLATFORM.VK,
+    dialogAccountId: "202",
+    messageAuthorAccountId: "202",
+    localAccountId: "100",
+    rawText: `${PROTOCOL.MSG_PREFIX}${"A".repeat(PROTOCOL.HARD_LIMIT_CHARS)}`
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, "decrypt_failed");
+  assert.equal(result.reason, "payload_too_large");
+  assert.equal(result.errorType, INTERNAL_ERROR.WRAPPER_PARSE_FAILURE);
+});
+
 test("process-incoming keeps malformed unknown-version wrappers in unsupported_version", async () => {
   await dispatchMessage("mc:init-identity", { displayName: "" });
 
@@ -1405,7 +1519,7 @@ test("process-incoming returns invalid_key when key announcement author account 
   assert.equal(result.errorType, INTERNAL_ERROR.STORAGE_MISMATCH);
 });
 
-test("process-incoming key stores normalized message id for announcement tracking", async () => {
+test("process-incoming key stores strict message id for announcement tracking", async () => {
   await dispatchMessage("mc:init-identity", { displayName: "" });
   const remote = await generateIdentity("");
   const announcement = await createSignedAnnouncement({
@@ -1418,7 +1532,7 @@ test("process-incoming key stores normalized message id for announcement trackin
     dialogAccountId: "901",
     messageAuthorAccountId: "901",
     localAccountId: "100",
-    messageId: "msg_12345_tail",
+    messageId: "12345",
     rawText: announcement
   });
 

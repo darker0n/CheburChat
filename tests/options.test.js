@@ -52,7 +52,6 @@ function createElements({ includeDebugControls = false, includeContactsControls 
     "#fingerprint-short-output": new FakeElement(),
     "#fingerprint-full-output": new FakeElement(),
     "#public-key-output": new FakeElement(),
-    "#private-key-output": new FakeElement(),
     "#private-key-input": new FakeElement(),
     "#create-identity": new FakeElement(),
     "#refresh-identity": new FakeElement(),
@@ -60,7 +59,7 @@ function createElements({ includeDebugControls = false, includeContactsControls 
     "#copy-fingerprint-short": new FakeElement(),
     "#copy-fingerprint-full": new FakeElement(),
     "#copy-public-key": new FakeElement(),
-    "#copy-private-key": new FakeElement()
+    "#download-private-key": new FakeElement()
   };
 
   if (includeDebugControls) {
@@ -163,7 +162,6 @@ test("initial refresh shows empty identity state when identity is missing", asyn
   assert.equal(calls[0].type, "mc:get-identity");
   assert.equal(elements["#create-identity"].textContent, "Создать ключ");
   assert.equal(elements["#public-key-output"].value, "");
-  assert.equal(elements["#private-key-output"].value, "");
   assert.equal(elements["#fingerprint-short-output"].value, "");
   assert.equal(elements["#fingerprint-full-output"].value, "");
 });
@@ -179,9 +177,6 @@ test("create identity triggers init and refreshes displayed identity", async () 
   const { elements, calls } = await bootOptions({
     responder: (message) => {
       if (message.type === "mc:get-identity") return { ok: true, identity };
-      if (message.type === "mc:get-private-key") {
-        return identity ? { ok: true, privateKeyArmored: "PRIVATE" } : { ok: false, error: "no_identity" };
-      }
       if (message.type === "mc:init-identity") {
         identity = createdIdentity;
         return { ok: true, identity: createdIdentity };
@@ -194,13 +189,12 @@ test("create identity triggers init and refreshes displayed identity", async () 
 
   assert.deepEqual(
     calls.map((entry) => entry.type),
-    ["mc:get-identity", "mc:init-identity", "mc:get-identity", "mc:get-private-key"]
+    ["mc:get-identity", "mc:init-identity", "mc:get-identity"]
   );
   assert.equal(elements["#message"].textContent, "Ключ шифрования создан.");
   assert.equal(elements["#message"].style.color, "#0d5a20");
   assert.equal(elements["#create-identity"].textContent, "Заменить ключ");
   assert.equal(elements["#public-key-output"].value, "PUBLIC");
-  assert.equal(elements["#private-key-output"].value, "PRIVATE");
   assert.equal(elements["#fingerprint-short-output"].value, "ABCD EF01 2345");
   assert.equal(elements["#fingerprint-full-output"].value, "ABCD EF01 2345 6789 ABCD EF01 2345 6789 ABCD EF01");
 });
@@ -216,7 +210,6 @@ test("create identity is canceled by confirmation when identity already exists",
     confirmResult: false,
     responder: (message) => {
       if (message.type === "mc:get-identity") return { ok: true, identity: existingIdentity };
-      if (message.type === "mc:get-private-key") return { ok: true, privateKeyArmored: "PRIV" };
       if (message.type === "mc:init-identity") throw new Error("mc:init-identity should not be called");
       throw new Error(`Unexpected message: ${message.type}`);
     }
@@ -226,8 +219,29 @@ test("create identity is canceled by confirmation when identity already exists",
 
   assert.deepEqual(
     calls.map((entry) => entry.type),
-    ["mc:get-identity", "mc:get-private-key"]
+    ["mc:get-identity"]
   );
+});
+
+test("private key export fetches secret only after explicit download action", async () => {
+  const identity = {
+    fingerprintShort: "AAAA BBBB CCCC",
+    fingerprintFull: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    publicKeyArmored: "PUB"
+  };
+  const { elements, calls } = await bootOptions({
+    responder: (message) => {
+      if (message.type === "mc:get-identity") return { ok: true, identity };
+      if (message.type === "mc:get-private-key") return { ok: true, privateKeyArmored: "PRIVATE" };
+      throw new Error(`Unexpected message: ${message.type}`);
+    }
+  });
+
+  assert.deepEqual(calls.map((entry) => entry.type), ["mc:get-identity"]);
+  await elements["#download-private-key"].click();
+
+  assert.deepEqual(calls.map((entry) => entry.type), ["mc:get-identity", "mc:get-private-key"]);
+  assert.equal(elements["#message"].textContent, "Приватный ключ сохранён в файл.");
 });
 
 test("import identity validates private key input before sending request", async () => {
@@ -396,7 +410,7 @@ test("contact removal from options calls remove-contact and refreshes list", asy
   assert.equal(elements["#message"].style.color, "#0d5a20");
 });
 
-test("contact share from options opens VK dialog with auto-share flag", async () => {
+test("contact share from options requests internal one-time share flow", async () => {
   const { elements, calls, opened, createdTabs } = await bootOptions({
     includeContactsControls: true,
     responder: (message) => {
@@ -410,7 +424,6 @@ test("contact share from options opens VK dialog with auto-share flag", async ()
           }
         };
       }
-      if (message.type === "mc:get-private-key") return { ok: true, privateKeyArmored: "PRIVATE" };
       if (message.type === "mc:list-contacts") {
         return {
           ok: true,
@@ -424,6 +437,10 @@ test("contact share from options opens VK dialog with auto-share flag", async ()
           ]
         };
       }
+      if (message.type === "mc:open-key-share-dialog") {
+        assert.deepEqual(message.payload, { platform: "vk", accountId: "200" });
+        return { ok: true };
+      }
       throw new Error(`Unexpected message: ${message.type}`);
     }
   });
@@ -434,9 +451,9 @@ test("contact share from options opens VK dialog with auto-share flag", async ()
 
   assert.deepEqual(
     calls.map((entry) => entry.type),
-    ["mc:get-identity", "mc:list-contacts", "mc:get-private-key"]
+    ["mc:get-identity", "mc:list-contacts", "mc:open-key-share-dialog"]
   );
-  assert.deepEqual(createdTabs, [{ url: "https://vk.com/im?sel=200&cc_share_key=200" }]);
+  assert.deepEqual(createdTabs, []);
   assert.deepEqual(opened, []);
   assert.equal(
     elements["#message"].textContent,

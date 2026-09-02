@@ -32,6 +32,12 @@ export function normalizeAccountId(accountId) {
   return assertString("accountId", accountId).trim();
 }
 
+export function normalizeVkAccountId(accountId) {
+  const value = normalizeAccountId(accountId);
+  if (!/^[1-9][0-9]*$/.test(value)) throw new Error("invalid VK accountId");
+  return value;
+}
+
 export function normalizeDisplayName(displayName) {
   if (typeof displayName !== "string") return "";
   return displayName;

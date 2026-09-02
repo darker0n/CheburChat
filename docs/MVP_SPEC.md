@@ -79,7 +79,7 @@ shims are kept (there were no released clients or sent messages to stay compatib
 ## 5. Goals
 
 ### Primary Goal
-Protect message plaintext from VK server-side reading when both participants use CheburChat.
+Protect message plaintext from passive VK server-side storage and inspection when both participants use CheburChat.
 
 ### Secondary Goals
 - make encrypted chat feel native inside VK Web
@@ -101,7 +101,7 @@ CheburChat MVP does **not** aim to:
 ## 7. Threat Model
 
 ### Protected Against
-- plaintext visibility to VK servers for encrypted messages
+- plaintext visibility during passive VK server-side storage and inspection of encrypted messages
 - passive server-side storage/inspection of encrypted message content
 - accidental plaintext sending when a valid trusted contact key is already established, except where explicitly allowed by the product rules
 
@@ -110,11 +110,13 @@ CheburChat MVP does **not** aim to:
 - malicious or compromised extensions
 - compromised endpoint device
 - session/account takeover at VK level
+- active or compromised VK client-side code that reads the native compose input or decrypted DOM
 - metadata collection such as who talks to whom, when, how often, and from what device/IP
 - screenshots, clipboard leakage, or shoulder surfing
+- transport-controlled replay, duplication, or reordering of otherwise valid signed messages
 
 ### Security Positioning
-CheburChat provides message content confidentiality for supported chats on VK Web, but not full endpoint security.
+CheburChat provides message content confidentiality against passive server/network observers for supported chats on VK Web, but not against active code running at the VK endpoint and not full endpoint security.
 
 ## 8. Crypto Decision
 
@@ -195,6 +197,8 @@ A binding consists of:
 
 ### Account Identifier Type
 `accountId` must always be stored and serialized as a string, never as a JSON number.
+At the VK integration and background-worker boundary, an account ID must additionally match `^[1-9][0-9]*$`.
+The generic identity model remains string-based so future platform adapters may define their own identifier syntax.
 
 ### Example
 - identity keypair: one per user
@@ -692,9 +696,14 @@ At minimum, use separate storage entries for:
 ### Concurrency Rule
 Content scripts must not write directly to `chrome.storage.local`.
 All persistent writes must go through the background/service worker so the extension has a single logical writer.
+The worker must restrict `chrome.storage.local` access to trusted extension contexts; content scripts read and mutate state only through validated worker messages.
 
 ### Race-Mitigation Rule
-The background/service worker must perform per-record read-modify-write operations and avoid whole-database rewrites so concurrent updates from multiple tabs do not overwrite unrelated contact records.
+The background/service worker must serialize each per-record read-modify-write transaction and avoid whole-database rewrites so concurrent updates from multiple tabs cannot overwrite fields in the same record or unrelated contact records.
+
+### Transient Key-Share Intent
+Opening a VK dialog for key sharing must use a short-lived, one-time intent in `chrome.storage.session`.
+The intent must not be encoded as a public URL command and may be consumed only by a validated VK content-script context for the matching account.
 
 ### Identity Record
 At minimum:
@@ -745,6 +754,8 @@ Store it encrypted at rest behind a local passphrase if feasible without jeopard
 
 ### Minimum Acceptable MVP
 If passphrase protection is deferred, the security model and settings UI must clearly reflect that browser-local storage is the trust boundary.
+Private-key export in settings must be loaded only after an explicit user action and offered as a download rather than kept in a permanently rendered text field.
+Sensitive key input fields must disable spellcheck, autocorrection, and form autocomplete where supported.
 
 ## 32. Chat Open Flow
 
@@ -1069,7 +1080,7 @@ Merged from the original `MVP_TECHNICAL_APPENDIX.md`.
 
 ### Canonical Types
 - `platform`: string, must be `"vk"` in MVP.
-- `accountId`: string only.
+- `accountId`: string only; the VK adapter/worker boundary accepts only positive decimal IDs matching `^[1-9][0-9]*$`.
 - `displayName`: string only, always present (`""` when unknown).
 - `ts`: RFC 3339 UTC with milliseconds, e.g. `2025-03-19T12:34:56.789Z`.
 
@@ -1134,6 +1145,8 @@ Use separate namespaced keys in `chrome.storage.local`:
 - `contact:<platform>:<accountId>`
 
 All writes must go through background worker.
+Per-record read-modify-write mutations must be serialized, and `chrome.storage.local` must be restricted to trusted extension contexts.
+Short-lived one-time key-share intents use `chrome.storage.session`, never URL query commands.
 
 MVP contact storage keeps a single active public key per contact record.
 Per-contact key history/keyring support (active + retired keys) is deferred post-MVP.
@@ -1159,3 +1172,5 @@ Decrypted message render requires:
 - Conservative warning threshold: 1800 UTF-8 bytes of plaintext.
 - Approximate guidance: ~1800 ASCII/Latin characters or ~900 Cyrillic characters.
 - Block (do not truncate) when encrypted wrapper exceeds limit.
+- Reject incoming protocol wrappers above the VK hard limit before crypto processing.
+- Process newly discovered VK message nodes in bounded batches so one DOM mutation cannot monopolize the content script.

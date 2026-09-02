@@ -1,5 +1,3 @@
-const VK_DIALOG_SHARE_PARAM = "cc_share_key";
-
 export const KEY_REPLACEMENT_WARNING = [
   "Если вы замените ключ шифрования, вам нужно будет снова поделиться новым ключом с контактом, а контакту — повторно его верифицировать.",
   "Вы также можете потерять доступ к истории сообщений, которая была зашифрована на старый ключ.",
@@ -14,12 +12,6 @@ export function buildVkDialogUrl(accountId) {
 
 export async function sendMessage(type, payload = {}, chromeApi = globalThis.chrome) {
   return chromeApi.runtime.sendMessage({ type, payload });
-}
-
-export function buildVkContactShareUrl(accountId) {
-  const url = new URL(buildVkDialogUrl(accountId));
-  url.searchParams.set(VK_DIALOG_SHARE_PARAM, String(accountId || "").trim());
-  return url.toString();
 }
 
 export async function openUrlInNewTab(url, deps = {}) {

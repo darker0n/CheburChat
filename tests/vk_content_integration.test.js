@@ -637,6 +637,31 @@ test("vk content script debounces mutation bursts into one refresh cycle", async
   assert.equal(totalChatStateCalls, 2);
 });
 
+test("vk content script drains incoming protocol nodes in bounded batches", async () => {
+  const { calls } = await bootVkScript({
+    href: "https://vk.com/im?sel=556",
+    setupDom: (document) => {
+      for (let index = 0; index < 12; index += 1) {
+        const message = new FakeNode({
+          className: "MessageText msg incoming",
+          textContent: `CHEBURCHAT:v1:msg:payload${index}`
+        });
+        document.body.appendChild(appendChildren(new FakeNode({ tagName: "article" }), message));
+      }
+    },
+    responder: (message) => {
+      if (message.type === "mc:get-settings") {
+        return { ok: true, settings: { warningThresholdChars: 1800 } };
+      }
+      if (message.type === "mc:get-chat-state") return { ok: false };
+      if (message.type === "mc:process-incoming") return { ok: true, kind: "none" };
+      return { ok: true };
+    }
+  });
+
+  assert.equal(calls.filter((entry) => entry.type === "mc:process-incoming").length, 12);
+});
+
 test("vk content script resolves dialog and author ids from href fallbacks", async () => {
   const { calls } = await bootVkScript({
     href: "https://vk.com/im",
@@ -1505,7 +1530,7 @@ test("vk content indicator aborts auto share when compose text changes before VK
   assert.ok(alerts.some((text) => /Текст в поле ввода изменился до отправки объявления ключа/i.test(text)));
 });
 
-test("vk content script auto shares key when dialog is opened from contacts settings", async () => {
+test("vk content script consumes internal intent before auto sharing key", async () => {
   let compose = null;
   let article = null;
   const selfAnnouncementText = buildKeyAnnouncementText({
@@ -1523,7 +1548,7 @@ test("vk content script auto shares key when dialog is opened from contacts sett
   });
 
   const { calls, alerts, triggerMutations } = await bootVkScript({
-    href: "https://vk.com/im?sel=779&cc_share_key=779",
+    href: "https://vk.com/im?sel=779",
     vkId: "100",
     setupDom: (document) => {
       article = new FakeNode({ tagName: "article" });
@@ -1550,6 +1575,9 @@ test("vk content script auto shares key when dialog is opened from contacts sett
             fingerprintFull: "ABCD"
           }
         };
+      }
+      if (message.type === "mc:consume-key-share-intent") {
+        return { ok: true, pending: true };
       }
       if (message.type === "mc:get-identity") {
         return { ok: true, identity: { fingerprintFull: "LOCAL" } };
@@ -1580,6 +1608,7 @@ test("vk content script auto shares key when dialog is opened from contacts sett
   assert.ok(announcementCall, "expected mc:create-key-announcement call");
   assert.equal(announcementCall.payload.accountId, "100");
   assert.equal(compose.value, selfAnnouncementText);
+  assert.equal(calls.filter((entry) => entry.type === "mc:consume-key-share-intent").length, 1);
   assert.equal(calls.some((entry) => entry.type === "mc:mark-own-key-shared"), false);
 
   article.appendChild(selfAnnouncementNode);
@@ -1650,6 +1679,15 @@ test("vk content script can reject incoming key and keep it rejected", async () 
   const buttons = createdNodes.filter((node) => /\bmc-inline-action-button\b/.test(node.className));
   assert.equal(buttons.length, 2);
   assert.equal(buttons[1].textContent, "Отклонить");
+
+  buttons[1].dispatchEvent({
+    type: "click",
+    isTrusted: false,
+    preventDefault() {},
+    stopPropagation() {}
+  });
+  await flushAsyncUiWork();
+  assert.equal(calls.some((entry) => entry.type === "mc:set-trust"), false);
 
   await buttons[1].click();
   await flushAsyncUiWork();
@@ -2143,6 +2181,14 @@ test("vk content script sends set-trust trusted when changed key is accepted fro
 
   const indicator = createdNodes.find((node) => /\bmc-lock-indicator\b/.test(node.className));
   assert.ok(indicator, "expected lock indicator node to be created");
+  indicator.dispatchEvent({
+    type: "click",
+    isTrusted: false,
+    preventDefault() {}
+  });
+  await flushAsyncUiWork();
+  assert.equal(calls.some((entry) => entry.type === "mc:set-trust"), false);
+
   await indicator.click();
   await flushAsyncUiWork();
 

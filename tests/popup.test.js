@@ -561,3 +561,32 @@ test("opening a new contact renders verify action that sends mc:set-trust truste
   assert.ok(trustCall, "mc:set-trust was sent");
   assert.deepEqual(trustCall.payload, { platform: "vk", accountId: "200", trustState: "trusted" });
 });
+
+test("contact key sharing uses worker-mediated one-time intent", async () => {
+  const contact = {
+    platform: "vk",
+    accountId: "201",
+    displayName: "Борис",
+    publicKeyArmored: "PUB",
+    trustState: "trusted",
+    fingerprintFull: "BEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEFBEEF"
+  };
+  const { $, calls } = await bootPopup({
+    responder: (message) => {
+      if (message.type === "mc:get-identity") {
+        return { ok: true, identity: { fingerprintFull: "ABCDEF0123456789ABCDEF0123456789ABCDEF01" } };
+      }
+      if (message.type === "mc:list-contacts") return { ok: true, contacts: [contact] };
+      if (message.type === "mc:get-settings") return { ok: true, settings: {} };
+      if (message.type === "mc:open-key-share-dialog") return { ok: true };
+      throw new Error(`Unexpected message: ${message.type}`);
+    }
+  });
+
+  await $("contacts-list").children[0].click();
+  const shareButton = $("contact-actions").children.find((button) => button.textContent === "Поделиться ключом");
+  await shareButton.click();
+
+  const shareCall = calls.find((entry) => entry.type === "mc:open-key-share-dialog");
+  assert.deepEqual(shareCall.payload, { platform: "vk", accountId: "201" });
+});
