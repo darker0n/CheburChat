@@ -10,7 +10,7 @@
 [![Crypto: OpenPGP.js v6](https://img.shields.io/badge/crypto-OpenPGP.js%20v6-1F6B18.svg)](https://github.com/openpgpjs/openpgpjs)
 [![Build: none](https://img.shields.io/badge/build-none%20(vanilla%20JS)-786452.svg)](#разработка)
 
-[Сайт](https://cheburchat.com) · [Установка](https://cheburchat.com/install) · [Руководство пользователя](docs/USER_GUIDE.md) · [Технический документ](docs/TECHNICAL.md)
+[Сайт](https://cheburchat.com) · [Chrome Web Store](https://chromewebstore.google.com/detail/%D1%87%D0%B5%D0%B1%D1%83%D1%80%D1%87%D0%B0%D1%82/klgggfipcbbfppeiiifgcmdbjppbfhaf) · [Установка](https://cheburchat.com/install) · [Руководство пользователя](docs/USER_GUIDE.md) · [Технический документ](docs/TECHNICAL.md)
 
 </div>
 
@@ -130,7 +130,9 @@ site/             исходники cheburchat.com (выносится в от�
 
 ## Установка
 
-Бета пока не в Chrome Web Store — ставится вручную из исходников (сборка не нужна). Пошагово: **[cheburchat.com/install](https://cheburchat.com/install)**.
+Расширение опубликовано в **[Chrome Web Store](https://chromewebstore.google.com/detail/%D1%87%D0%B5%D0%B1%D1%83%D1%80%D1%87%D0%B0%D1%82/klgggfipcbbfppeiiifgcmdbjppbfhaf)** — установка в один клик.
+
+Альтернатива — вручную из исходников (сборка не нужна), пошагово на **[cheburchat.com/install](https://cheburchat.com/install)**:
 
 ```
 1. Скачать ZIP последней версии из Releases и распаковать

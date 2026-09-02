@@ -4,7 +4,7 @@
 
 ## 1. Установка
 
-На время беты расширение ставится вручную — пошаговая инструкция со скриншотами на [cheburchat.com/install](https://cheburchat.com/install). Коротко: скачать с GitHub → `chrome://extensions` → «Режим разработчика» → «Загрузить распакованное расширение».
+Расширение доступно в [Chrome Web Store](https://chromewebstore.google.com/detail/%D1%87%D0%B5%D0%B1%D1%83%D1%80%D1%87%D0%B0%D1%82/klgggfipcbbfppeiiifgcmdbjppbfhaf) — установка в один клик. Можно поставить и вручную из исходников (инструкция на [cheburchat.com/install](https://cheburchat.com/install)): скачать с GitHub → `chrome://extensions` → «Режим разработчика» → «Загрузить распакованное расширение».
 
 ## 2. Первый запуск: создание ключа
 
