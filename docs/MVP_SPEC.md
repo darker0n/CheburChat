@@ -118,6 +118,13 @@ CheburChat MVP does **not** aim to:
 ### Security Positioning
 CheburChat provides message content confidentiality against passive server/network observers for supported chats on VK Web, but not against active code running at the VK endpoint and not full endpoint security.
 
+### Evidence and Likelihood of Active VK Client Risk
+- No current network evidence is known, and the audit did not demonstrate, that the VK client transmits every typed character or draft plaintext to its servers.
+- The risk is inferred from capability, not observed behavior: the native VK compose field and decrypted page DOM are technically readable by active client-side code.
+- Exploitation would require VK or an attacker controlling its frontend to deliberately add plaintext-collection JavaScript, either broadly or selectively for a chosen account or group. It is not an ordinary CheburChat malfunction.
+- For an ordinary user, the beta product assessment treats this as a low-likelihood scenario primarily relevant to a targeted high-value-adversary model; the impact would nevertheless be high if it occurred.
+- Eliminating the capability requires moving both composition and decrypted rendering into an extension-owned Side Panel, cross-origin iframe, or separate window. That materially reduces the native VK chat experience and is deferred beyond the current beta.
+
 ## 8. Crypto Decision
 
 ### Crypto Engine
